@@ -2,23 +2,32 @@
   ESP-Arti Wi-Fi firmware
   ------------------------
   ESP32 WROVER-E / PSRAM
-  - Wi-Fi only
-  - No BLE
-  - No SD
-  - No LittleFS
-  - Browser chat endpoint: POST /chat
-  - GitHub supplies the runtime model/config files.
-  - Neural inference runs locally on the ESP32.
 
-  Model:
-    TinyStories-260K, llama2.c checkpoint format.
-    dim=64, hidden_dim=172, layers=5, heads=8, kv_heads=4, vocab=512.
-    The checkpoint is about 1.06 MB and is streamed directly into PSRAM.
+  This firmware is the PERMANENT runtime/inference engine.
+  The trained Arti model is NOT stored permanently in the ESP32.
 
-  NOTE:
-    This is a real trained neural language model, but TinyStories-260K was
-    trained for short children's stories, not instruction-following chat.
-    It is therefore a local neural-model milestone, not a ChatGPT-sized model.
+  On every boot:
+    1. Connect to Wi-Fi.
+    2. Download our current project-owned model from GitHub.
+    3. Put the model in PSRAM.
+    4. Run neural inference locally on the ESP32.
+
+  A reset/power loss clears PSRAM, so the model is downloaded again.
+
+  Model format:
+    ESPARTI1
+    byte vocabulary (256)
+    context 128
+    d_model 32
+    1 Transformer block
+    4 attention heads
+    FFN 64
+    float32 weights
+
+  No BLE.
+  No SD.
+  No LittleFS.
+  No external AI inference API.
 */
 
 #include <WiFi.h>
@@ -26,6 +35,7 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -33,182 +43,177 @@
 static const char *WIFI_SSID = "";
 static const char *WIFI_PASSWORD = "";
 
-static const char *GITHUB_RAW_BASE =
-  "https://raw.githubusercontent.com/duck-dev781/ESP-Arti/main/";
-
-static const char *MODEL_CONFIG_PATH = "ai/config.h";
-
 static const char *MODEL_URL =
-  "https://raw.githubusercontent.com/maddiedreese/gbc-transformer/main/stories260K.bin";
+  "https://raw.githubusercontent.com/duck-dev781/ESP-Arti/main/ai/arti-v1.bin";
 
-static const char *TOKENIZER_URL =
-  "https://raw.githubusercontent.com/maddiedreese/gbc-transformer/main/tok512.bin";
+static const int MODEL_VOCAB = 256;
+static const int MODEL_CONTEXT = 128;
+static const int MODEL_DIM = 32;
+static const int MODEL_LAYERS = 1;
+static const int MODEL_HEADS = 4;
+static const int MODEL_FFN = 64;
 
-static const size_t EXPECTED_MODEL_BYTES = 1056540;
-static const size_t EXPECTED_TOKENIZER_BYTES = 6227;
-
-static const int MAX_RUNTIME_SEQ = 256;
-static const int MAX_GENERATION_TOKENS = 64;
-static const int MAX_PROMPT_TOKENS = 96;
-static const int VOCAB_SIZE = 512;
+static const int MAX_PROMPT_BYTES = 120;
+static const int MAX_GENERATION_BYTES = 256;
 
 WebServer server(80);
 
-String modelConfig;
-String lastError;
-
-bool modelLoaded = false;
-bool modelLoading = false;
-
-struct ModelConfig {
-  int dim;
-  int hidden_dim;
-  int n_layers;
-  int n_heads;
-  int n_kv_heads;
-  int vocab_size;
-  int max_seq_len;
-};
-
-struct TransformerWeights {
-  float *token_embedding_table;
-  float *rms_att_weight;
-  float *rms_ffn_weight;
-  float *wq;
-  float *wk;
-  float *wv;
-  float *wo;
-  float *w1;
-  float *w2;
-  float *w3;
-  float *rms_final_weight;
-  float *freq_cis_real;
-  float *freq_cis_imag;
-  float *wcls;
-};
-
-struct Tokenizer {
-  char *tokenizerData;
-  char *vocab[VOCAB_SIZE];
-  float vocab_scores[VOCAB_SIZE];
-  int vocab_size;
-  int max_token_length;
-};
-
-static ModelConfig modelCfg;
-static ModelConfig runtimeCfg;
-static TransformerWeights weights;
-static Tokenizer tokenizer;
-
 static uint8_t *modelData = nullptr;
+static size_t modelDataSize = 0;
+static bool modelLoaded = false;
+static String lastError;
 
-static float *s_x = nullptr;
-static float *s_xb = nullptr;
-static float *s_xb2 = nullptr;
-static float *s_hb = nullptr;
-static float *s_hb2 = nullptr;
-static float *s_q = nullptr;
-static float *s_k = nullptr;
-static float *s_v = nullptr;
-static float *s_att = nullptr;
-static float *s_logits = nullptr;
-static float *s_key_cache = nullptr;
-static float *s_value_cache = nullptr;
+struct ModelHeader {
+  char magic[8];
+  uint32_t version;
+  uint32_t vocab;
+  uint32_t context;
+  uint32_t dim;
+  uint32_t layers;
+  uint32_t heads;
+  uint32_t ffn;
+};
 
-static bool allocateInferenceMemory() {
-  s_x = (float *)ps_malloc(64 * sizeof(float));
-  s_xb = (float *)ps_malloc(64 * sizeof(float));
-  s_xb2 = (float *)ps_malloc(64 * sizeof(float));
-  s_hb = (float *)ps_malloc(172 * sizeof(float));
-  s_hb2 = (float *)ps_malloc(172 * sizeof(float));
-  s_q = (float *)ps_malloc(64 * sizeof(float));
-  s_k = (float *)ps_malloc(32 * sizeof(float));
-  s_v = (float *)ps_malloc(32 * sizeof(float));
-  s_att = (float *)ps_malloc(8 * MAX_RUNTIME_SEQ * sizeof(float));
-  s_logits = (float *)ps_malloc(VOCAB_SIZE * sizeof(float));
+struct ModelWeights {
+  float *embedding;
+  float *ln1;
+  float *q;
+  float *k;
+  float *v;
+  float *o;
+  float *ln2;
+  float *ff1;
+  float *ff2;
+  float *lnFinal;
+  float *output;
+};
 
-  const size_t kvFloats =
-    (size_t)5 * MAX_RUNTIME_SEQ * 32;
+static ModelHeader header;
+static ModelWeights weights;
 
-  s_key_cache = (float *)ps_malloc(kvFloats * sizeof(float));
-  s_value_cache = (float *)ps_malloc(kvFloats * sizeof(float));
+static float *x = nullptr;
+static float *xb = nullptr;
+static float *xb2 = nullptr;
+static float *q = nullptr;
+static float *k = nullptr;
+static float *v = nullptr;
+static float *att = nullptr;
+static float *hb = nullptr;
+static float *hb2 = nullptr;
+static float *logits = nullptr;
+static float *keyCache = nullptr;
+static float *valueCache = nullptr;
 
-  if (!s_x || !s_xb || !s_xb2 ||
-      !s_hb || !s_hb2 || !s_q ||
-      !s_k || !s_v || !s_att ||
-      !s_logits || !s_key_cache ||
-      !s_value_cache) {
-    lastError = "Could not allocate neural inference buffers in PSRAM.";
+static bool allocateRuntimeMemory() {
+  x = (float *)ps_malloc(MODEL_DIM * sizeof(float));
+  xb = (float *)ps_malloc(MODEL_DIM * sizeof(float));
+  xb2 = (float *)ps_malloc(MODEL_DIM * sizeof(float));
+  q = (float *)ps_malloc(MODEL_DIM * sizeof(float));
+  k = (float *)ps_malloc(MODEL_DIM * sizeof(float));
+  v = (float *)ps_malloc(MODEL_DIM * sizeof(float));
+  att = (float *)ps_malloc(MODEL_HEADS * MODEL_CONTEXT * sizeof(float));
+  hb = (float *)ps_malloc(MODEL_FFN * sizeof(float));
+  hb2 = (float *)ps_malloc(MODEL_FFN * sizeof(float));
+  logits = (float *)ps_malloc(MODEL_VOCAB * sizeof(float));
+
+  const size_t cacheFloats =
+    (size_t)MODEL_LAYERS *
+    MODEL_CONTEXT *
+    MODEL_DIM;
+
+  keyCache = (float *)ps_malloc(cacheFloats * sizeof(float));
+  valueCache = (float *)ps_malloc(cacheFloats * sizeof(float));
+
+  if (!x || !xb || !xb2 || !q || !k || !v ||
+      !att || !hb || !hb2 || !logits ||
+      !keyCache || !valueCache) {
+    lastError = "Could not allocate neural runtime buffers in PSRAM.";
     return false;
   }
 
   return true;
 }
 
-static bool downloadToBuffer(
-  const char *url,
-  uint8_t **outBuffer,
-  size_t expectedBytes
-) {
+static bool downloadModel() {
+  modelLoaded = false;
+  lastError = "";
+
   WiFiClientSecure client;
   client.setInsecure();
 
   HTTPClient http;
   http.setTimeout(30000);
 
-  if (!http.begin(client, url)) {
-    lastError = String("HTTP begin failed: ") + url;
+  Serial.println();
+  Serial.println("=== ESP-Arti model loader ===");
+  Serial.println("Downloading OUR Arti model from GitHub...");
+  Serial.println(MODEL_URL);
+
+  if (!http.begin(client, MODEL_URL)) {
+    lastError = "Could not start HTTPS model download.";
+    Serial.println(lastError);
     return false;
   }
 
   int code = http.GET();
 
   if (code != HTTP_CODE_OK) {
-    lastError = String("HTTP ") + code + " while downloading " + url;
+    lastError = String("Model download HTTP error: ") + code;
+    Serial.println(lastError);
     http.end();
     return false;
   }
 
   int contentLength = http.getSize();
 
-  if (contentLength > 0 &&
-      (size_t)contentLength != expectedBytes) {
-    lastError =
-      String("Unexpected file size. Expected ") +
-      expectedBytes +
-      ", got " +
-      contentLength;
+  if (contentLength <= 0) {
+    lastError = "GitHub did not provide a model content length.";
+    Serial.println(lastError);
     http.end();
     return false;
   }
 
-  uint8_t *buffer = (uint8_t *)ps_malloc(expectedBytes);
+  if ((size_t)contentLength > 1024 * 1024) {
+    lastError = "Model is larger than the 1 MB safety limit.";
+    Serial.println(lastError);
+    http.end();
+    return false;
+  }
 
-  if (!buffer) {
-    lastError =
-      String("Not enough PSRAM for download buffer: ") +
-      expectedBytes;
+  if (modelData) {
+    free(modelData);
+    modelData = nullptr;
+    modelDataSize = 0;
+  }
+
+  modelDataSize = (size_t)contentLength;
+  modelData = (uint8_t *)ps_malloc(modelDataSize);
+
+  if (!modelData) {
+    lastError = String("Could not allocate ") +
+                modelDataSize +
+                " bytes for the model in PSRAM.";
+    Serial.println(lastError);
     http.end();
     return false;
   }
 
   WiFiClient *stream = http.getStreamPtr();
-
   size_t received = 0;
   unsigned long lastData = millis();
 
-  while (received < expectedBytes) {
+  while (received < modelDataSize) {
     size_t availableBytes = stream->available();
 
-    if (availableBytes) {
-      size_t wanted = expectedBytes - received;
+    if (availableBytes > 0) {
+      size_t wanted = modelDataSize - received;
 
       if (availableBytes > wanted) {
         availableBytes = wanted;
       }
 
       int n = stream->readBytes(
-        buffer + received,
+        modelData + received,
         availableBytes
       );
 
@@ -218,9 +223,12 @@ static bool downloadToBuffer(
       }
     } else {
       if (millis() - lastData > 30000) {
-        free(buffer);
+        lastError = "Timed out while downloading the Arti model.";
+        free(modelData);
+        modelData = nullptr;
+        modelDataSize = 0;
         http.end();
-        lastError = "Timed out while downloading model data.";
+        Serial.println(lastError);
         return false;
       }
 
@@ -230,752 +238,442 @@ static bool downloadToBuffer(
 
   http.end();
 
-  if (received != expectedBytes) {
-    free(buffer);
+  if (received != modelDataSize) {
+    lastError = "Model download was incomplete.";
+    free(modelData);
+    modelData = nullptr;
+    modelDataSize = 0;
+    Serial.println(lastError);
+    return false;
+  }
+
+  Serial.print("Downloaded ");
+  Serial.print(modelDataSize);
+  Serial.println(" bytes into PSRAM.");
+
+  if (modelDataSize < sizeof(ModelHeader)) {
+    lastError = "Downloaded model is too small.";
+    return false;
+  }
+
+  memcpy(&header, modelData, sizeof(ModelHeader));
+
+  if (memcmp(header.magic, "ESPARTI1", 8) != 0) {
+    lastError = "Downloaded file is not an ESP-Arti model.";
+    return false;
+  }
+
+  if (header.version != 1 ||
+      header.vocab != MODEL_VOCAB ||
+      header.context != MODEL_CONTEXT ||
+      header.dim != MODEL_DIM ||
+      header.layers != MODEL_LAYERS ||
+      header.heads != MODEL_HEADS ||
+      header.ffn != MODEL_FFN) {
+    lastError = "Downloaded model configuration does not match this firmware.";
+    return false;
+  }
+
+  const size_t expectedWeights =
+    (size_t)MODEL_VOCAB * MODEL_DIM +
+    (size_t)MODEL_DIM +
+    (size_t)MODEL_DIM * MODEL_DIM +
+    (size_t)MODEL_DIM * MODEL_DIM +
+    (size_t)MODEL_DIM * MODEL_DIM +
+    (size_t)MODEL_DIM * MODEL_DIM +
+    (size_t)MODEL_DIM +
+    (size_t)MODEL_DIM * MODEL_FFN +
+    (size_t)MODEL_FFN * MODEL_DIM +
+    (size_t)MODEL_DIM +
+    (size_t)MODEL_DIM * MODEL_VOCAB;
+
+  const size_t expectedBytes =
+    sizeof(ModelHeader) +
+    expectedWeights * sizeof(float);
+
+  if (modelDataSize != expectedBytes) {
     lastError =
-      String("Incomplete download. Expected ") +
+      String("Wrong model size. Expected ") +
       expectedBytes +
       ", got " +
-      received;
+      modelDataSize;
+    Serial.println(lastError);
     return false;
   }
 
-  *outBuffer = buffer;
-  return true;
-}
+  uint8_t *ptr = modelData + sizeof(ModelHeader);
 
-static bool loadTokenizer() {
-  uint8_t *data = nullptr;
+  weights.embedding = (float *)ptr;
+  ptr += MODEL_VOCAB * MODEL_DIM * sizeof(float);
 
-  Serial.println("Downloading TinyStories tokenizer...");
+  weights.ln1 = (float *)ptr;
+  ptr += MODEL_DIM * sizeof(float);
 
-  if (!downloadToBuffer(
-        TOKENIZER_URL,
-        &data,
-        EXPECTED_TOKENIZER_BYTES
-      )) {
-    return false;
-  }
+  weights.q = (float *)ptr;
+  ptr += MODEL_DIM * MODEL_DIM * sizeof(float);
 
-  tokenizer.tokenizerData = (char *)data;
+  weights.k = (float *)ptr;
+  ptr += MODEL_DIM * MODEL_DIM * sizeof(float);
 
-  size_t pos = 0;
+  weights.v = (float *)ptr;
+  ptr += MODEL_DIM * MODEL_DIM * sizeof(float);
 
-  if (EXPECTED_TOKENIZER_BYTES < sizeof(int32_t)) {
-    lastError = "Tokenizer file is too small.";
-    return false;
-  }
+  weights.o = (float *)ptr;
+  ptr += MODEL_DIM * MODEL_DIM * sizeof(float);
 
-  int32_t maxTokenLength = 0;
-  memcpy(
-    &maxTokenLength,
-    data + pos,
-    sizeof(int32_t)
+  weights.ln2 = (float *)ptr;
+  ptr += MODEL_DIM * sizeof(float);
+
+  weights.ff1 = (float *)ptr;
+  ptr += MODEL_DIM * MODEL_FFN * sizeof(float);
+
+  weights.ff2 = (float *)ptr;
+  ptr += MODEL_FFN * MODEL_DIM * sizeof(float);
+
+  weights.lnFinal = (float *)ptr;
+  ptr += MODEL_DIM * sizeof(float);
+
+  weights.output = (float *)ptr;
+
+  memset(
+    keyCache,
+    0,
+    (size_t)MODEL_LAYERS *
+    MODEL_CONTEXT *
+    MODEL_DIM *
+    sizeof(float)
   );
-  pos += sizeof(int32_t);
 
-  tokenizer.max_token_length = maxTokenLength;
-  tokenizer.vocab_size = VOCAB_SIZE;
+  memset(
+    valueCache,
+    0,
+    (size_t)MODEL_LAYERS *
+    MODEL_CONTEXT *
+    MODEL_DIM *
+    sizeof(float)
+  );
 
-  for (int i = 0; i < VOCAB_SIZE; ++i) {
-    if (pos + sizeof(float) + sizeof(int32_t) >
-        EXPECTED_TOKENIZER_BYTES) {
-      lastError = "Tokenizer structure is invalid.";
-      return false;
-    }
+  modelLoaded = true;
 
-    float score = 0.0f;
-    int32_t len = 0;
-
-    memcpy(&score, data + pos, sizeof(float));
-    pos += sizeof(float);
-
-    memcpy(&len, data + pos, sizeof(int32_t));
-    pos += sizeof(int32_t);
-
-    if (len < 0 ||
-        pos + (size_t)len > EXPECTED_TOKENIZER_BYTES) {
-      lastError = "Tokenizer token length is invalid.";
-      return false;
-    }
-
-    char *token = (char *)malloc((size_t)len + 1);
-
-    if (!token) {
-      lastError = "Could not allocate tokenizer token.";
-      return false;
-    }
-
-    memcpy(token, data + pos, (size_t)len);
-    token[len] = '\0';
-
-    tokenizer.vocab[i] = token;
-    tokenizer.vocab_scores[i] = score;
-
-    pos += (size_t)len;
-  }
+  Serial.println("OUR Arti model loaded into PSRAM.");
+  Serial.print("Free PSRAM after load: ");
+  Serial.println(ESP.getFreePsram());
 
   return true;
 }
 
-static void initWeights(
-  TransformerWeights *w,
-  const ModelConfig *p,
-  float *ptr,
-  bool sharedWeights
-) {
-  int headSize = p->dim / p->n_heads;
-
-  w->token_embedding_table = ptr;
-  ptr += p->vocab_size * p->dim;
-
-  w->rms_att_weight = ptr;
-  ptr += p->n_layers * p->dim;
-
-  w->wq = ptr;
-  ptr += p->n_layers * p->dim * p->dim;
-
-  int kvDim = (p->dim * p->n_kv_heads) / p->n_heads;
-
-  w->wk = ptr;
-  ptr += p->n_layers * p->dim * kvDim;
-
-  w->wv = ptr;
-  ptr += p->n_layers * p->dim * kvDim;
-
-  w->wo = ptr;
-  ptr += p->n_layers * p->dim * p->dim;
-
-  w->rms_ffn_weight = ptr;
-  ptr += p->n_layers * p->dim;
-
-  w->w1 = ptr;
-  ptr += p->n_layers * p->dim * p->hidden_dim;
-
-  w->w2 = ptr;
-  ptr += p->n_layers * p->hidden_dim * p->dim;
-
-  w->w3 = ptr;
-  ptr += p->n_layers * p->dim * p->hidden_dim;
-
-  w->rms_final_weight = ptr;
-  ptr += p->dim;
-
-  w->freq_cis_real = ptr;
-  ptr += p->max_seq_len * headSize / 2;
-
-  w->freq_cis_imag = ptr;
-  ptr += p->max_seq_len * headSize / 2;
-
-  w->wcls =
-    sharedWeights
-      ? w->token_embedding_table
-      : ptr;
-}
-
-static void rmsnorm(
+static void rmsNorm(
   float *out,
-  const float *x,
-  const float *weight,
-  int size
+  const float *input,
+  const float *weight
 ) {
-  float ss = 0.0f;
+  float sum = 0.0f;
 
-  for (int i = 0; i < size; ++i) {
-    ss += x[i] * x[i];
+  for (int i = 0; i < MODEL_DIM; ++i) {
+    sum += input[i] * input[i];
   }
 
-  ss /= (float)size;
-  ss += 1e-5f;
-  ss = 1.0f / sqrtf(ss);
+  float scale =
+    1.0f / sqrtf(
+      sum / (float)MODEL_DIM + 1e-5f
+    );
 
-  for (int i = 0; i < size; ++i) {
-    out[i] = weight[i] * (ss * x[i]);
+  for (int i = 0; i < MODEL_DIM; ++i) {
+    out[i] = input[i] * scale * weight[i];
   }
 }
 
-static void softmax(float *x, int size) {
-  float maxValue = x[0];
+static void matmul(
+  float *out,
+  const float *input,
+  const float *matrix,
+  int inputSize,
+  int outputSize
+) {
+  for (int row = 0; row < outputSize; ++row) {
+    float sum = 0.0f;
 
-  for (int i = 1; i < size; ++i) {
-    if (x[i] > maxValue) {
-      maxValue = x[i];
+    for (int col = 0; col < inputSize; ++col) {
+      sum += matrix[row * inputSize + col] * input[col];
+    }
+
+    out[row] = sum;
+  }
+}
+
+static void softmax(float *values, int count) {
+  float maxValue = values[0];
+
+  for (int i = 1; i < count; ++i) {
+    if (values[i] > maxValue) {
+      maxValue = values[i];
     }
   }
 
   float sum = 0.0f;
 
-  for (int i = 0; i < size; ++i) {
-    x[i] = expf(x[i] - maxValue);
-    sum += x[i];
+  for (int i = 0; i < count; ++i) {
+    values[i] = expf(values[i] - maxValue);
+    sum += values[i];
   }
 
   if (sum <= 0.0f) {
     return;
   }
 
-  for (int i = 0; i < size; ++i) {
-    x[i] /= sum;
+  for (int i = 0; i < count; ++i) {
+    values[i] /= sum;
   }
 }
 
-static void matmul(
-  float *out,
-  const float *x,
-  const float *w,
-  int n,
-  int d
+static void forwardToken(
+  uint8_t token,
+  int position
 ) {
-  for (int i = 0; i < d; ++i) {
-    float value = 0.0f;
-
-    for (int j = 0; j < n; ++j) {
-      value += w[i * n + j] * x[j];
-    }
-
-    out[i] = value;
-  }
-}
-
-static float *forward(
-  const ModelConfig *p,
-  const TransformerWeights *w,
-  int token,
-  int pos
-) {
-  const int dim = p->dim;
-  const int kvDim =
-    (p->dim * p->n_kv_heads) / p->n_heads;
-  const int kvMul =
-    p->n_heads / p->n_kv_heads;
-  const int hiddenDim = p->hidden_dim;
-  const int headSize = dim / p->n_heads;
-
-  const float *contentRow =
-    w->token_embedding_table +
-    token * dim;
+  const int headSize = MODEL_DIM / MODEL_HEADS;
 
   memcpy(
-    s_x,
-    contentRow,
-    (size_t)dim * sizeof(float)
+    x,
+    weights.embedding +
+      (size_t)token * MODEL_DIM,
+    MODEL_DIM * sizeof(float)
   );
 
-  for (int layer = 0;
-       layer < p->n_layers;
-       ++layer) {
+  rmsNorm(xb, x, weights.ln1);
 
-    rmsnorm(
-      s_xb,
-      s_x,
-      w->rms_att_weight + layer * dim,
-      dim
-    );
+  matmul(q, xb, weights.q, MODEL_DIM, MODEL_DIM);
+  matmul(k, xb, weights.k, MODEL_DIM, MODEL_DIM);
+  matmul(v, xb, weights.v, MODEL_DIM, MODEL_DIM);
 
-    matmul(
-      s_q,
-      s_xb,
-      w->wq + layer * dim * dim,
-      dim,
-      dim
-    );
+  float *keyAtPosition =
+    keyCache +
+    (size_t)position * MODEL_DIM;
 
-    matmul(
-      s_k,
-      s_xb,
-      w->wk + layer * dim * kvDim,
-      dim,
-      kvDim
-    );
+  float *valueAtPosition =
+    valueCache +
+    (size_t)position * MODEL_DIM;
 
-    matmul(
-      s_v,
-      s_xb,
-      w->wv + layer * dim * kvDim,
-      dim,
-      kvDim
-    );
+  memcpy(
+    keyAtPosition,
+    k,
+    MODEL_DIM * sizeof(float)
+  );
 
-    for (int i = 0; i < dim; i += 2) {
-      int headDim = i % headSize;
+  memcpy(
+    valueAtPosition,
+    v,
+    MODEL_DIM * sizeof(float)
+  );
 
-      int freqIndex =
-        pos * headSize / 2 +
-        headDim / 2;
+  for (int head = 0;
+       head < MODEL_HEADS;
+       ++head) {
 
-      float freq =
-        w->freq_cis_real[freqIndex];
+    float *qHead = q + head * headSize;
+    float *attention =
+      att + head * MODEL_CONTEXT;
 
-      float fci =
-        w->freq_cis_imag[freqIndex];
+    for (int t = 0; t <= position; ++t) {
+      const float *kHead =
+        keyCache +
+        (size_t)t * MODEL_DIM +
+        head * headSize;
 
-      float q0 = s_q[i];
-      float q1 = s_q[i + 1];
+      float score = 0.0f;
 
-      s_q[i] =
-        q0 * freq -
-        q1 * fci;
-
-      s_q[i + 1] =
-        q0 * fci +
-        q1 * freq;
-
-      if (i < kvDim) {
-        float k0 = s_k[i];
-        float k1 = s_k[i + 1];
-
-        s_k[i] =
-          k0 * freq -
-          k1 * fci;
-
-        s_k[i + 1] =
-          k0 * fci +
-          k1 * freq;
-      }
-    }
-
-    size_t layerOffset =
-      (size_t)layer *
-      (size_t)MAX_RUNTIME_SEQ *
-      (size_t)kvDim;
-
-    memcpy(
-      s_key_cache +
-        layerOffset +
-        (size_t)pos * kvDim,
-      s_k,
-      (size_t)kvDim * sizeof(float)
-    );
-
-    memcpy(
-      s_value_cache +
-        layerOffset +
-        (size_t)pos * kvDim,
-      s_v,
-      (size_t)kvDim * sizeof(float)
-    );
-
-    for (int head = 0;
-         head < p->n_heads;
-         ++head) {
-
-      float *qHead =
-        s_q + head * headSize;
-
-      float *attHead =
-        s_att + head * MAX_RUNTIME_SEQ;
-
-      for (int t = 0;
-           t <= pos;
-           ++t) {
-
-        const float *kHead =
-          s_key_cache +
-          layerOffset +
-          (size_t)t * kvDim +
-          (size_t)(head / kvMul) * headSize;
-
-        float score = 0.0f;
-
-        for (int i = 0;
-             i < headSize;
-             ++i) {
-          score +=
-            qHead[i] * kHead[i];
-        }
-
-        attHead[t] =
-          score /
-          sqrtf((float)headSize);
+      for (int j = 0; j < headSize; ++j) {
+        score += qHead[j] * kHead[j];
       }
 
-      softmax(attHead, pos + 1);
+      attention[t] =
+        score / sqrtf((float)headSize);
+    }
 
-      float *outHead =
-        s_xb + head * headSize;
+    softmax(attention, position + 1);
 
-      memset(
-        outHead,
-        0,
-        (size_t)headSize * sizeof(float)
-      );
+    float *outHead =
+      xb + head * headSize;
 
-      for (int t = 0;
-           t <= pos;
-           ++t) {
+    memset(
+      outHead,
+      0,
+      headSize * sizeof(float)
+    );
 
-        const float *vHead =
-          s_value_cache +
-          layerOffset +
-          (size_t)t * kvDim +
-          (size_t)(head / kvMul) * headSize;
+    for (int t = 0; t <= position; ++t) {
+      const float *vHead =
+        valueCache +
+        (size_t)t * MODEL_DIM +
+        head * headSize;
 
-        float a = attHead[t];
-
-        for (int i = 0;
-             i < headSize;
-             ++i) {
-          outHead[i] +=
-            a * vHead[i];
-        }
+      for (int j = 0; j < headSize; ++j) {
+        outHead[j] +=
+          attention[t] * vHead[j];
       }
-    }
-
-    matmul(
-      s_xb2,
-      s_x,
-      w->wo + layer * dim * dim,
-      dim,
-      dim
-    );
-
-    for (int i = 0; i < dim; ++i) {
-      s_x[i] += s_xb2[i];
-    }
-
-    rmsnorm(
-      s_xb,
-      s_x,
-      w->rms_ffn_weight + layer * dim,
-      dim
-    );
-
-    matmul(
-      s_hb,
-      s_xb,
-      w->w1 + layer * dim * hiddenDim,
-      dim,
-      hiddenDim
-    );
-
-    matmul(
-      s_hb2,
-      s_xb,
-      w->w3 + layer * dim * hiddenDim,
-      dim,
-      hiddenDim
-    );
-
-    for (int i = 0;
-         i < hiddenDim;
-         ++i) {
-
-      float value = s_hb[i];
-
-      value *=
-        1.0f /
-        (1.0f + expf(-value));
-
-      s_hb[i] =
-        value * s_hb2[i];
-    }
-
-    matmul(
-      s_xb,
-      s_hb,
-      w->w2 + layer * hiddenDim * dim,
-      hiddenDim,
-      dim
-    );
-
-    for (int i = 0; i < dim; ++i) {
-      s_x[i] += s_xb[i];
     }
   }
 
-  rmsnorm(
-    s_x,
-    s_x,
-    w->rms_final_weight,
-    dim
+  matmul(
+    xb2,
+    xb,
+    weights.o,
+    MODEL_DIM,
+    MODEL_DIM
+  );
+
+  for (int i = 0; i < MODEL_DIM; ++i) {
+    x[i] += xb2[i];
+  }
+
+  rmsNorm(xb, x, weights.ln2);
+
+  matmul(
+    hb,
+    xb,
+    weights.ff1,
+    MODEL_DIM,
+    MODEL_FFN
   );
 
   matmul(
-    s_logits,
-    s_x,
-    w->wcls,
-    dim,
-    p->vocab_size
+    hb2,
+    xb,
+    weights.ff2,
+    MODEL_DIM,
+    MODEL_FFN
   );
 
-  return s_logits;
-}
+  for (int i = 0; i < MODEL_FFN; ++i) {
+    float sigmoid =
+      1.0f /
+      (1.0f + expf(-hb[i]));
 
-static int vocabLookup(
-  const char *text,
-  int length
-) {
-  for (int token = 0;
-       token < tokenizer.vocab_size;
-       ++token) {
-
-    const char *v =
-      tokenizer.vocab[token];
-
-    if ((int)strlen(v) != length) {
-      continue;
-    }
-
-    if (memcmp(
-          v,
-          text,
-          (size_t)length
-        ) == 0) {
-      return token;
-    }
+    hb[i] =
+      hb[i] *
+      sigmoid *
+      hb2[i];
   }
 
-  return -1;
-}
+  matmul(
+    xb,
+    hb,
+    weights.ff2,
+    MODEL_FFN,
+    MODEL_DIM
+  );
 
-static int bpeEncode(
-  const String &text,
-  uint16_t *tokens,
-  int maxTokens
-) {
-  int count = 0;
-
-  for (size_t i = 0;
-       i < text.length() &&
-       count < maxTokens;
-       ++i) {
-
-    char single[2];
-
-    single[0] = text[i];
-    single[1] = '\0';
-
-    int id =
-      vocabLookup(single, 1);
-
-    if (id >= 0) {
-      tokens[count++] =
-        (uint16_t)id;
-    }
+  for (int i = 0; i < MODEL_DIM; ++i) {
+    x[i] += xb[i];
   }
 
-  for (;;) {
-    float bestScore = -1e30f;
-    int bestId = -1;
-    int bestIndex = -1;
+  rmsNorm(
+    x,
+    x,
+    weights.lnFinal
+  );
 
-    for (int i = 0;
-         i + 1 < count;
-         ++i) {
-
-      const char *left =
-        tokenizer.vocab[tokens[i]];
-
-      const char *right =
-        tokenizer.vocab[tokens[i + 1]];
-
-      size_t leftLen = strlen(left);
-      size_t rightLen = strlen(right);
-
-      if (leftLen + rightLen >= 128) {
-        continue;
-      }
-
-      char merge[128];
-
-      memcpy(
-        merge,
-        left,
-        leftLen
-      );
-
-      memcpy(
-        merge + leftLen,
-        right,
-        rightLen
-      );
-
-      merge[leftLen + rightLen] =
-        '\0';
-
-      int id =
-        vocabLookup(
-          merge,
-          (int)(leftLen + rightLen)
-        );
-
-      if (id >= 0 &&
-          tokenizer.vocab_scores[id] >
-            bestScore) {
-
-        bestScore =
-          tokenizer.vocab_scores[id];
-
-        bestId = id;
-        bestIndex = i;
-      }
-    }
-
-    if (bestIndex < 0) {
-      break;
-    }
-
-    tokens[bestIndex] =
-      (uint16_t)bestId;
-
-    for (int j = bestIndex + 1;
-         j + 1 < count;
-         ++j) {
-      tokens[j] =
-        tokens[j + 1];
-    }
-
-    --count;
-  }
-
-  return count;
+  matmul(
+    logits,
+    x,
+    weights.output,
+    MODEL_DIM,
+    MODEL_VOCAB
+  );
 }
 
-static int argmax(
-  const float *values,
-  int count
-) {
+static uint8_t chooseNextToken() {
   int best = 0;
-  float bestValue = values[0];
+  float bestValue = logits[0];
 
-  for (int i = 1;
-       i < count;
-       ++i) {
-
-    if (values[i] > bestValue) {
-      bestValue = values[i];
+  for (int i = 1; i < MODEL_VOCAB; ++i) {
+    if (logits[i] > bestValue) {
+      bestValue = logits[i];
       best = i;
     }
   }
 
-  return best;
+  return (uint8_t)best;
 }
 
 static String generateNeuralReply(
-  const String &userMessage,
-  const String &onlineContext
+  const String &message
 ) {
   if (!modelLoaded) {
-    return "The neural model is not loaded.";
-  }
-
-  uint16_t promptTokens[MAX_PROMPT_TOKENS];
-
-  String prompt;
-
-  /*
-    TinyStories was not instruction-tuned, so this is a simple text prompt.
-    The model will continue the text locally rather than calling an API.
-  */
-  prompt = "The user said: ";
-  prompt += userMessage;
-
-  if (onlineContext.length()) {
-    prompt += "\nCurrent information: ";
-    prompt += onlineContext.substring(0, 500);
-  }
-
-  prompt += "\nArti said:";
-
-  int promptCount =
-    bpeEncode(
-      prompt,
-      promptTokens,
-      MAX_PROMPT_TOKENS
-    );
-
-  if (promptCount <= 0) {
-    promptCount = 0;
-  }
-
-  if (promptCount >= MAX_RUNTIME_SEQ - 1) {
-    promptCount =
-      MAX_RUNTIME_SEQ - 2;
+    return "The Arti model is not loaded. Check Serial Monitor.";
   }
 
   memset(
-    s_key_cache,
+    keyCache,
     0,
-    (size_t)5 *
-      MAX_RUNTIME_SEQ *
-      32 *
-      sizeof(float)
+    (size_t)MODEL_CONTEXT *
+    MODEL_DIM *
+    sizeof(float)
   );
 
   memset(
-    s_value_cache,
+    valueCache,
     0,
-    (size_t)5 *
-      MAX_RUNTIME_SEQ *
-      32 *
-      sizeof(float)
+    (size_t)MODEL_CONTEXT *
+    MODEL_DIM *
+    sizeof(float)
   );
 
-  int token = 1;
+  String prompt =
+    "You are Arti, a local neural assistant running on an ESP32 WROVER-E. "
+    "Your model runs locally. Follow the user's current role. "
+    "User: ";
+
+  prompt += message;
+  prompt += "\nArti:";
+
+  if (prompt.length() > MAX_PROMPT_BYTES) {
+    prompt =
+      prompt.substring(
+        prompt.length() - MAX_PROMPT_BYTES
+      );
+  }
+
   int position = 0;
 
-  for (int i = 0;
-       i < promptCount;
+  for (size_t i = 0;
+       i < prompt.length() &&
+       position < MODEL_CONTEXT - 1;
        ++i) {
 
-    token = promptTokens[i];
-
-    forward(
-      &runtimeCfg,
-      &weights,
-      token,
+    forwardToken(
+      (uint8_t)prompt[i],
       position
     );
 
     ++position;
-
-    if (position >= MAX_RUNTIME_SEQ - 1) {
-      break;
-    }
-  }
-
-  if (position == 0) {
-    forward(
-      &runtimeCfg,
-      &weights,
-      1,
-      0
-    );
-
-    position = 1;
   }
 
   String reply;
-  reply.reserve(700);
+  reply.reserve(MAX_GENERATION_BYTES);
 
-  for (int generated = 0;
-       generated < MAX_GENERATION_TOKENS &&
-       position < MAX_RUNTIME_SEQ;
-       ++generated) {
+  for (int i = 0;
+       i < MAX_GENERATION_BYTES &&
+       position < MODEL_CONTEXT;
+       ++i) {
 
-    int next =
-      argmax(
-        s_logits,
-        runtimeCfg.vocab_size
-      );
+    uint8_t next =
+      chooseNextToken();
 
-    if (next == 1 || next == 2) {
+    if (next == 0 || next == '\n') {
       break;
     }
 
-    const char *piece =
-      tokenizer.vocab[next];
+    char c = (char)next;
 
-    if (piece) {
-      reply += piece;
+    if (isprint((unsigned char)c) ||
+        c == '\n' ||
+        c == '\r' ||
+        c == '\t') {
+      reply += c;
     }
 
-    token = next;
-
-    forward(
-      &runtimeCfg,
-      &weights,
-      token,
+    forwardToken(
+      next,
       position
     );
 
@@ -983,195 +681,39 @@ static String generateNeuralReply(
   }
 
   if (reply.length() == 0) {
-    return "(The local neural model generated no text.)";
+    return "(Arti generated no text.)";
   }
 
   return reply;
 }
 
-static bool loadNeuralModel() {
-  modelLoading = true;
-  modelLoaded = false;
-  lastError = "";
-
-  Serial.println();
-  Serial.println("Loading local neural model...");
-  Serial.println("Downloading TinyStories-260K model to PSRAM.");
-
-  if (!downloadToBuffer(
-        MODEL_URL,
-        &modelData,
-        EXPECTED_MODEL_BYTES
-      )) {
-    modelLoading = false;
-    Serial.println(lastError);
-    return false;
-  }
-
-  if (EXPECTED_MODEL_BYTES < sizeof(ModelConfig)) {
-    lastError = "Model file is too small.";
-    modelLoading = false;
-    return false;
-  }
-
-  memcpy(
-    &modelCfg,
-    modelData,
-    sizeof(ModelConfig)
-  );
-
-  Serial.println("Model header:");
-  Serial.print("dim = ");
-  Serial.println(modelCfg.dim);
-
-  Serial.print("hidden_dim = ");
-  Serial.println(modelCfg.hidden_dim);
-
-  Serial.print("layers = ");
-  Serial.println(modelCfg.n_layers);
-
-  Serial.print("heads = ");
-  Serial.println(modelCfg.n_heads);
-
-  Serial.print("kv_heads = ");
-  Serial.println(modelCfg.n_kv_heads);
-
-  Serial.print("vocab = ");
-  Serial.println(
-    abs(modelCfg.vocab_size)
-  );
-
-  Serial.print("checkpoint seq = ");
-  Serial.println(modelCfg.max_seq_len);
-
-  if (modelCfg.dim != 64 ||
-      modelCfg.hidden_dim != 172 ||
-      modelCfg.n_layers != 5 ||
-      modelCfg.n_heads != 8 ||
-      modelCfg.n_kv_heads != 4 ||
-      abs(modelCfg.vocab_size) != VOCAB_SIZE ||
-      modelCfg.max_seq_len != 512) {
-
-    lastError =
-      "Downloaded model does not match TinyStories-260K configuration.";
-
-    modelLoading = false;
-    return false;
-  }
-
-  bool sharedWeights =
-    modelCfg.vocab_size > 0;
-
-  modelCfg.vocab_size =
-    abs(modelCfg.vocab_size);
-
-  runtimeCfg = modelCfg;
-
-  if (runtimeCfg.max_seq_len >
-      MAX_RUNTIME_SEQ) {
-    runtimeCfg.max_seq_len =
-      MAX_RUNTIME_SEQ;
-  }
-
-  float *weightStart =
-    (float *)(modelData + sizeof(ModelConfig));
-
-  initWeights(
-    &weights,
-    &modelCfg,
-    weightStart,
-    sharedWeights
-  );
-
-  if (!loadTokenizer()) {
-    modelLoading = false;
-    Serial.println(lastError);
-    return false;
-  }
-
-  if (!allocateInferenceMemory()) {
-    modelLoading = false;
-    Serial.println(lastError);
-    return false;
-  }
-
-  modelLoaded = true;
-  modelLoading = false;
-
-  Serial.print("Neural model loaded. Free PSRAM: ");
-  Serial.println(ESP.getFreePsram());
-
-  return true;
-}
-
-static bool downloadRuntimeConfig() {
-  String cfg;
-
-  Serial.println(
-    "Downloading GitHub runtime configuration..."
-  );
-
-  if (!downloadToBuffer(
-        String(GITHUB_RAW_BASE) +
-          MODEL_CONFIG_PATH,
-        (uint8_t **)&cfg,
-        0
-      )) {
-    /*
-      This path is not used for the model anymore.
-      Keep the GitHub config download optional so the neural model can load
-      even if the small config file is absent.
-    */
-    return false;
-  }
-
-  return true;
-}
-
 static String jsonEscape(
-  const String &s
+  const String &value
 ) {
-  String r;
-  r.reserve(s.length() + 16);
+  String out;
+  out.reserve(value.length() + 16);
 
-  for (size_t i = 0;
-       i < s.length();
-       ++i) {
+  for (size_t i = 0; i < value.length(); ++i) {
+    char c = value[i];
 
-    char c = s[i];
-
-    switch (c) {
-      case '\\':
-        r += "\\\\";
-        break;
-
-      case '"':
-        r += "\\\"";
-        break;
-
-      case '\n':
-        r += "\\n";
-        break;
-
-      case '\r':
-        r += "\\r";
-        break;
-
-      case '\t':
-        r += "\\t";
-        break;
-
-      default:
-        if ((unsigned char)c < 32) {
-          r += ' ';
-        } else {
-          r += c;
-        }
-        break;
+    if (c == '\\') {
+      out += "\\\\";
+    } else if (c == '"') {
+      out += "\\"";
+    } else if (c == '\n') {
+      out += "\\n";
+    } else if (c == '\r') {
+      out += "\\r";
+    } else if (c == '\t') {
+      out += "\\t";
+    } else if ((unsigned char)c < 32) {
+      out += ' ';
+    } else {
+      out += c;
     }
   }
 
-  return r;
+  return out;
 }
 
 static String getJsonString(
@@ -1179,46 +721,34 @@ static String getJsonString(
   const String &key
 ) {
   String needle =
-    "\"" + key + "\"";
+    String(""") + key + """;
 
-  int p =
-    body.indexOf(needle);
+  int start = body.indexOf(needle);
 
-  if (p < 0) {
+  if (start < 0) {
     return "";
   }
 
-  p = body.indexOf(':', p);
+  int colon = body.indexOf(':', start);
 
-  if (p < 0) {
+  if (colon < 0) {
     return "";
   }
 
-  ++p;
+  int quote = body.indexOf('"', colon + 1);
 
-  while (
-    p < (int)body.length() &&
-    isspace(
-      (unsigned char)body[p]
-    )
-  ) {
-    ++p;
-  }
-
-  if (
-    p >= (int)body.length() ||
-    body[p] != '"'
-  ) {
+  if (quote < 0) {
     return "";
   }
-
-  ++p;
 
   String result;
   bool escaped = false;
 
-  for (; p < (int)body.length(); ++p) {
-    char c = body[p];
+  for (int i = quote + 1;
+       i < (int)body.length();
+       ++i) {
+
+    char c = body[i];
 
     if (escaped) {
       if (c == 'n') {
@@ -1250,175 +780,9 @@ static String getJsonString(
   return result;
 }
 
-static String searchOnline(
-  const String &query
-) {
-  if (WiFi.status() != WL_CONNECTED) {
-    return "";
-  }
-
-  WiFiClientSecure client;
-  client.setInsecure();
-
-  HTTPClient http;
-  http.setTimeout(12000);
-
-  String encoded;
-  encoded.reserve(
-    query.length() * 2
-  );
-
-  for (size_t i = 0;
-       i < query.length();
-       ++i) {
-
-    char c = query[i];
-
-    if (
-      isalnum((unsigned char)c) ||
-      c == '-' ||
-      c == '_' ||
-      c == '.'
-    ) {
-      encoded += c;
-    } else if (c == ' ') {
-      encoded += '+';
-    } else {
-      char buf[4];
-
-      snprintf(
-        buf,
-        sizeof(buf),
-        "%%%02X",
-        (unsigned char)c
-      );
-
-      encoded += buf;
-    }
-  }
-
-  String url =
-    "https://html.duckduckgo.com/html/?q=" +
-    encoded;
-
-  if (!http.begin(client, url)) {
-    return "";
-  }
-
-  int code = http.GET();
-
-  if (code != HTTP_CODE_OK) {
-    http.end();
-    return "";
-  }
-
-  String page = http.getString();
-  http.end();
-
-  String plain;
-  plain.reserve(5000);
-
-  bool inTag = false;
-
-  for (
-    size_t i = 0;
-    i < page.length() &&
-    plain.length() < 5000;
-    ++i
-  ) {
-    char c = page[i];
-
-    if (c == '<') {
-      inTag = true;
-      continue;
-    }
-
-    if (c == '>') {
-      inTag = false;
-      plain += ' ';
-      continue;
-    }
-
-    if (!inTag) {
-      plain += c;
-    }
-  }
-
-  while (
-    plain.indexOf("  ") >= 0
-  ) {
-    plain.replace("  ", " ");
-  }
-
-  return plain;
-}
-
-static bool queryNeedsSearch(
-  const String &q
-) {
-  String s = q;
-  s.toLowerCase();
-
-  if (s.startsWith("search ")) {
-    return true;
-  }
-
-  if (s.startsWith("look up ")) {
-    return true;
-  }
-
-  if (s.startsWith("find ")) {
-    return true;
-  }
-
-  if (s.indexOf("latest") >= 0) {
-    return true;
-  }
-
-  if (s.indexOf("current") >= 0) {
-    return true;
-  }
-
-  if (s.indexOf("today") >= 0) {
-    return true;
-  }
-
-  if (s.indexOf("right now") >= 0) {
-    return true;
-  }
-
-  if (s.indexOf("news") >= 0) {
-    return true;
-  }
-
-  return false;
-}
-
-static String searchQueryFromMessage(
-  const String &message
-) {
-  String q = message;
-  String low = q;
-  low.toLowerCase();
-
-  if (low.startsWith("search ")) {
-    return q.substring(7);
-  }
-
-  if (low.startsWith("look up ")) {
-    return q.substring(8);
-  }
-
-  if (low.startsWith("find ")) {
-    return q.substring(5);
-  }
-
-  return q;
-}
-
 static void handleRoot() {
   String page;
-  page.reserve(2400);
+  page.reserve(2600);
 
   page += "<!doctype html><html><head>";
   page += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
@@ -1452,51 +816,35 @@ static void handleRoot() {
   page += "}catch(e){add('System','Connection error: '+e,'arti')}}";
   page += "</script></main></body></html>";
 
-  server.send(
-    200,
-    "text/html",
-    page
-  );
+  server.send(200, "text/html", page);
 }
 
 static void handleStatus() {
   String json = "{";
 
-  json += "\"model_loaded\":";
-  json += modelLoaded
-            ? "true"
-            : "false";
+  json += ""model_loaded":";
+  json += modelLoaded ? "true" : "false";
 
-  json += ",\"neural_model\":\"TinyStories-260K\"";
+  json += ","model":"ESP-Arti project-owned neural model"";
 
-  json += ",\"psram\":";
-  json += psramFound()
-            ? "true"
-            : "false";
+  json += ","psram":";
+  json += psramFound() ? "true" : "false";
 
-  json += ",\"free_psram\":";
-  json += String(
-    ESP.getFreePsram()
-  );
+  json += ","free_psram":";
+  json += String(ESP.getFreePsram());
 
-  json += ",\"wifi\":";
-  json += WiFi.status() == WL_CONNECTED
-            ? "true"
-            : "false";
+  json += ","wifi":";
+  json += WiFi.status() == WL_CONNECTED ? "true" : "false";
 
-  json += ",\"ip\":\"";
+  json += ","ip":"";
   json += WiFi.localIP().toString();
-  json += "\"";
+  json += """;
 
-  json += ",\"error\":\"";
+  json += ","error":"";
   json += jsonEscape(lastError);
-  json += "\"}";
+  json += ""}";
 
-  server.send(
-    200,
-    "application/json",
-    json
-  );
+  server.send(200, "application/json", json);
 }
 
 static void handleChat() {
@@ -1504,17 +852,14 @@ static void handleChat() {
     server.send(
       400,
       "application/json",
-      "{\"error\":\"Expected JSON body.\"}"
+      "{"error":"Expected JSON body."}"
     );
     return;
   }
 
-  String body =
-    server.arg("plain");
-
   String message =
     getJsonString(
-      body,
+      server.arg("plain"),
       "message"
     );
 
@@ -1522,49 +867,27 @@ static void handleChat() {
     server.send(
       400,
       "application/json",
-      "{\"error\":\"Missing message.\"}"
+      "{"error":"Missing message."}"
     );
     return;
   }
 
-  String onlineContext;
-
-  if (queryNeedsSearch(message)) {
-    Serial.println(
-      "Online search requested."
-    );
-
-    onlineContext =
-      searchOnline(
-        searchQueryFromMessage(
-          message
-        )
-      );
-  }
-
-  unsigned long start =
-    millis();
+  unsigned long start = millis();
 
   String reply =
-    generateNeuralReply(
-      message,
-      onlineContext
-    );
+    generateNeuralReply(message);
 
   unsigned long elapsed =
     millis() - start;
 
-  Serial.print(
-    "Neural generation took "
-  );
+  Serial.print("Inference time: ");
   Serial.print(elapsed);
-  Serial.println(" ms.");
+  Serial.println(" ms");
 
   String json =
-    "{\"reply\":\"";
-
-  json += jsonEscape(reply);
-  json += "\"}";
+    String("{"reply":"") +
+    jsonEscape(reply) +
+    ""}";
 
   server.send(
     200,
@@ -1589,42 +912,34 @@ void setup() {
   Serial.println("==============================");
   Serial.println("ESP-Arti");
   Serial.println("ESP32 WROVER-E / Wi-Fi");
-  Serial.println("LOCAL NEURAL INFERENCE");
+  Serial.println("PROJECT-OWNED LOCAL AI");
   Serial.println("==============================");
 
   if (!psramFound()) {
-    Serial.println(
-      "ERROR: PSRAM was not detected."
-    );
     lastError =
-      "PSRAM is required for the neural model.";
+      "PSRAM was not detected. It is required.";
+    Serial.println(lastError);
     return;
   }
 
-  Serial.print("PSRAM: ");
-  Serial.print(
-    ESP.getPsramSize()
-  );
-  Serial.println(" bytes");
+  Serial.print("PSRAM total: ");
+  Serial.println(ESP.getPsramSize());
 
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
 
-  Serial.print(
-    "Connecting to Wi-Fi"
-  );
+  Serial.print("Connecting to Wi-Fi");
 
   WiFi.begin(
     WIFI_SSID,
     WIFI_PASSWORD
   );
 
-  unsigned long wifiStart =
-    millis();
+  unsigned long start = millis();
 
   while (
     WiFi.status() != WL_CONNECTED &&
-    millis() - wifiStart < 30000
+    millis() - start < 30000
   ) {
     delay(400);
     Serial.print(".");
@@ -1633,81 +948,48 @@ void setup() {
   Serial.println();
 
   if (WiFi.status() != WL_CONNECTED) {
-    lastError =
-      "Wi-Fi connection failed.";
+    lastError = "Wi-Fi connection failed.";
     Serial.println(lastError);
     return;
   }
 
-  Serial.println(
-    "Wi-Fi connected."
-  );
-
+  Serial.println("Wi-Fi connected.");
   Serial.print("ESP32 IP: ");
-  Serial.println(
-    WiFi.localIP()
-  );
+  Serial.println(WiFi.localIP());
 
-  /*
-    The small config file is still available from this repository, but the
-    actual trained neural checkpoint and tokenizer are downloaded directly
-    from GitHub at runtime.
-  */
-  loadNeuralModel();
+  if (!allocateRuntimeMemory()) {
+    Serial.println(lastError);
+    return;
+  }
 
-  server.on(
-    "/",
-    HTTP_GET,
-    handleRoot
-  );
+  if (!downloadModel()) {
+    Serial.println();
+    Serial.println("MODEL LOAD FAILED:");
+    Serial.println(lastError);
+  }
 
-  server.on(
-    "/status",
-    HTTP_GET,
-    handleStatus
-  );
-
-  server.on(
-    "/chat",
-    HTTP_POST,
-    handleChat
-  );
-
-  server.onNotFound(
-    handleNotFound
-  );
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/status", HTTP_GET, handleStatus);
+  server.on("/chat", HTTP_POST, handleChat);
+  server.onNotFound(handleNotFound);
 
   server.begin();
 
-  Serial.println(
-    "HTTP server started."
-  );
-
-  Serial.print(
-    "Open http://"
-  );
-
-  Serial.print(
-    WiFi.localIP()
-  );
-
+  Serial.println("HTTP server started.");
+  Serial.print("Open http://");
+  Serial.print(WiFi.localIP());
   Serial.println("/");
 }
 
 void loop() {
   server.handleClient();
 
-  static unsigned long lastStatus =
-    0;
+  static unsigned long lastWiFiCheck = 0;
 
-  if (
-    millis() - lastStatus > 10000
-  ) {
-    lastStatus = millis();
+  if (millis() - lastWiFiCheck > 10000) {
+    lastWiFiCheck = millis();
 
-    if (
-      WiFi.status() != WL_CONNECTED
-    ) {
+    if (WiFi.status() != WL_CONNECTED) {
       WiFi.reconnect();
     }
   }
