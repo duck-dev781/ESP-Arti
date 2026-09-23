@@ -26,8 +26,9 @@ jobs:
 
       - name: Compile
         run: |
-          mkdir -p build
-          arduino-cli compile --fqbn esp32:esp32:esp32wrover --output-dir build output/ESP-Arti-WiFi.ino
+          mkdir -p build/sketch
+          cp output/ESP-Arti-WiFi.ino build/sketch/ESP-Arti-WiFi.ino
+          arduino-cli compile --fqbn esp32:esp32:esp32wrover --output-dir build/firmware build/sketch
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
