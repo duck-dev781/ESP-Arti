@@ -1,22 +1,17 @@
-"""Train ESP-Arti's own project-owned byte-level Transformer.
+"""Train ESP-Arti's project-owned v2 byte-level language model.
 
-The model is trained only from training/corpus.txt. No pretrained model
-or remote inference service is used.
+This keeps the ESP-Arti v2 binary architecture unchanged. The important
+training change is instruction-style next-token training: examples are stored
+as User/Arti conversations and loss is applied to the assistant response,
+while the user prompt remains visible to the Transformer as context.
 
-The binary layout written here is consumed by output/ESP-Arti-WiFi.ino.
-The training and firmware implementations intentionally use the same:
-  * learned token embeddings
-  * learned positional embeddings
-  * standard LayerNorm (weight + bias)
-  * causal multi-head self-attention
-  * GELU feed-forward blocks
-  * residual connections
-  * final LayerNorm
+No pretrained model or remote inference service is used.
 """
 
 from pathlib import Path
 import math
 import random
+import re
 import struct
 
 import torch
@@ -27,15 +22,18 @@ SEED = 7
 random.seed(SEED)
 torch.manual_seed(SEED)
 
+# ESP-Arti v2 FORMAT -- DO NOT CHANGE WITHOUT CHANGING THE ESP32 LOADER.
 VOCAB = 256
 CONTEXT = 128
 D = 64
 HEADS = 4
 LAYERS = 2
 FF = 128
-STEPS = 8000
-BATCH = 16
+
+STEPS = 12000
+BATCH = 32
 LR = 2e-3
+MIN_LR = 3e-4
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS_PATH = ROOT / "training" / "corpus.txt"
@@ -46,10 +44,47 @@ raw = CORPUS_PATH.read_bytes()
 if not raw:
     raise RuntimeError("training/corpus.txt is empty")
 
-if len(raw) < CONTEXT + 2:
-    raise RuntimeError("training/corpus.txt is too short for the context window")
+text = raw.decode("utf-8", errors="replace")
 
-data = torch.tensor(list(raw), dtype=torch.long)
+# Only train on complete conversation examples. This prevents the model from
+# spending most of its capacity memorizing the explanatory header text.
+matches = re.findall(
+    r"(?ms)^User:\s*(.*?)\nArti:\s*(.*?)(?=\n\s*\nUser:|\Z)",
+    text,
+)
+
+examples = []
+for user, answer in matches:
+    user = " ".join(user.strip().split())
+    answer = " ".join(answer.strip().split())
+
+    if not user or not answer:
+        continue
+
+    # The firmware sends exactly this conversation shape.
+    prompt = ("User: " + user + "\nArti:").encode("utf-8")
+    reply = (" " + answer + "\n").encode("utf-8")
+
+    if len(prompt) >= CONTEXT:
+        prompt = prompt[-(CONTEXT - 2):]
+
+    max_reply = CONTEXT - len(prompt)
+    if max_reply < 8:
+        continue
+
+    reply = reply[:max_reply]
+    sequence = prompt + reply
+
+    if len(sequence) >= 4:
+        examples.append((prompt, sequence))
+
+if len(examples) < 100:
+    raise RuntimeError(
+        f"Need at least 100 User/Arti examples, found {len(examples)}"
+    )
+
+print(f"conversation examples: {len(examples)}")
+print(f"corpus bytes: {len(raw)}")
 
 
 class Block(nn.Module):
@@ -66,21 +101,24 @@ class Block(nn.Module):
 
     def forward(self, x):
         b, t, c = x.shape
-
         h = self.ln1(x)
 
         q = self.q(h).view(b, t, HEADS, c // HEADS).transpose(1, 2)
         k = self.k(h).view(b, t, HEADS, c // HEADS).transpose(1, 2)
         v = self.v(h).view(b, t, HEADS, c // HEADS).transpose(1, 2)
 
-        a = (q @ k.transpose(-2, -1)) / math.sqrt(c // HEADS)
+        scores = (q @ k.transpose(-2, -1)) / math.sqrt(c // HEADS)
         mask = torch.triu(
             torch.ones(t, t, device=x.device),
             diagonal=1,
         ).bool()
-        a = a.masked_fill(mask, -1e9).softmax(-1)
+        scores = scores.masked_fill(mask, -1e9)
 
-        h = (a @ v).transpose(1, 2).contiguous().view(b, t, c)
+        attention = scores.softmax(-1)
+        h = (
+            attention @ v
+        ).transpose(1, 2).contiguous().view(b, t, c)
+
         x = x + self.o(h)
         x = x + self.ff2(F.gelu(self.ff1(self.ln2(x))))
         return x
@@ -97,7 +135,7 @@ class ArtiModel(nn.Module):
         self.ln = nn.LayerNorm(D)
         self.out = nn.Linear(D, VOCAB, bias=False)
 
-    def forward(self, idx, targets=None):
+    def forward(self, idx, targets=None, loss_mask=None):
         _, t = idx.shape
         x = self.emb(idx) + self.pos[:t]
 
@@ -105,18 +143,26 @@ class ArtiModel(nn.Module):
             x = block(x)
 
         logits = self.out(self.ln(x))
-
         loss = None
+
         if targets is not None:
-            loss = F.cross_entropy(
+            per_token = F.cross_entropy(
                 logits.reshape(-1, VOCAB),
                 targets.reshape(-1),
+                reduction="none",
             )
+
+            if loss_mask is None:
+                loss = per_token.mean()
+            else:
+                mask = loss_mask.reshape(-1).float()
+                loss = (per_token * mask).sum() / mask.sum().clamp_min(1.0)
 
         return logits, loss
 
 
 model = ArtiModel()
+
 optimizer = torch.optim.AdamW(
     model.parameters(),
     lr=LR,
@@ -124,23 +170,55 @@ optimizer = torch.optim.AdamW(
 )
 
 for step in range(STEPS):
-    starts = torch.randint(
-        0,
-        len(data) - CONTEXT - 1,
-        (BATCH,),
-    )
+    # Cosine decay keeps the early learning rate high enough to learn the
+    # dialogue structure and lowers it later to reduce unstable memorization.
+    progress = step / max(1, STEPS - 1)
+    lr = MIN_LR + 0.5 * (LR - MIN_LR) * (1.0 + math.cos(math.pi * progress))
 
-    x = torch.stack([
-        data[i:i + CONTEXT]
-        for i in starts
-    ])
+    for group in optimizer.param_groups:
+        group["lr"] = lr
 
-    y = torch.stack([
-        data[i + 1:i + CONTEXT + 1]
-        for i in starts
-    ])
+    batch_x = []
+    batch_y = []
+    batch_mask = []
 
-    _, loss = model(x, y)
+    for _ in range(BATCH):
+        prompt, sequence = random.choice(examples)
+        seq = list(sequence)
+
+        # Input predicts the next byte.
+        x = seq[:-1]
+        y = seq[1:]
+
+        # Only response bytes contribute to loss. Prompt bytes are still
+        # provided to the Transformer so they condition the response.
+        response_start = len(prompt) - 1
+        mask = [0.0] * len(y)
+
+        for i in range(response_start, len(y)):
+            mask[i] = 1.0
+
+        # Left-pad short examples so tensors have a fixed context length.
+        pad = CONTEXT - len(x)
+        if pad < 0:
+            x = x[-CONTEXT:]
+            y = y[-CONTEXT:]
+            mask = mask[-CONTEXT:]
+            pad = 0
+
+        x = [0] * pad + x
+        y = [0] * pad + y
+        mask = [0.0] * pad + mask
+
+        batch_x.append(x)
+        batch_y.append(y)
+        batch_mask.append(mask)
+
+    x = torch.tensor(batch_x, dtype=torch.long)
+    y = torch.tensor(batch_y, dtype=torch.long)
+    loss_mask = torch.tensor(batch_mask, dtype=torch.float32)
+
+    _, loss = model(x, y, loss_mask)
 
     optimizer.zero_grad(set_to_none=True)
     loss.backward()
@@ -148,7 +226,9 @@ for step in range(STEPS):
     optimizer.step()
 
     if step % 500 == 0 or step == STEPS - 1:
-        print(f"step={step} loss={loss.item():.4f}")
+        print(
+            f"step={step} loss={loss.item():.4f} lr={lr:.6f}"
+        )
 
 
 HEADER_FORMAT = "<8sIIIIIII"
@@ -231,5 +311,4 @@ if model_path.stat().st_size != expected_bytes:
     encoding="utf-8",
 )
 
-print(f"corpus bytes: {len(raw)}")
 print(f"wrote {model_path} ({model_path.stat().st_size} bytes)")
