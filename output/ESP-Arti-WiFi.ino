@@ -535,25 +535,19 @@ static void forwardToken(
     MODEL_FFN
   );
 
-  matmul(
-    hb2,
-    xb,
-    weights.ff2,
-    MODEL_DIM,
-    MODEL_FFN
-  );
-
   for (int i = 0; i < MODEL_FFN; ++i) {
-    float sigmoid =
-      1.0f /
-      (1.0f + expf(-hb[i]));
-
-    hb[i] =
-      hb[i] *
-      sigmoid *
-      hb2[i];
+    // GELU approximation matching the training model.
+    float z = hb[i];
+    float gelu =
+      0.5f * z *
+      (1.0f + tanhf(
+        0.79788456f *
+        (z + 0.044715f * z * z * z)
+      ));
+    hb[i] = gelu;
   }
 
+  // The second feed-forward matrix maps FFN -> model dimension.
   matmul(
     xb,
     hb,
