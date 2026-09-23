@@ -35,6 +35,9 @@ OUT_DIR = ROOT / "ai"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 raw = CORPUS_PATH.read_bytes()
+if not raw:
+    raise RuntimeError("training/corpus.txt is empty")
+
 data = torch.tensor(list(raw) * 80, dtype=torch.long)
 
 class Block(nn.Module):
@@ -123,12 +126,33 @@ tensors += [model.ln.weight, model.out.weight]
 
 with torch.no_grad():
     payload = b"".join(
-        t.detach().cpu().contiguous().float().numpy().tobytes()
+        t.detach().cpu().contiguous().numpy().tobytes()
         for t in tensors
     )
 
 model_path = OUT_DIR / "arti-v1.bin"
 model_path.write_bytes(header + payload)
+
+expected_floats = (
+    VOCAB * D +
+    D +
+    D * D +
+    D * D +
+    D * D +
+    D * D +
+    D +
+    D * FF +
+    FF * D +
+    D +
+    D * VOCAB
+)
+expected_bytes = struct.calcsize("<8sIIIIIII") + expected_floats * 4
+
+if model_path.stat().st_size != expected_bytes:
+    raise RuntimeError(
+        f"Bad model export size: expected {expected_bytes}, "
+        f"got {model_path.stat().st_size}"
+    )
 
 (OUT_DIR / "config.h").write_text(
     "# ESP-Arti project-owned model configuration\n"
