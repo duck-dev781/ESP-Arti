@@ -1,16 +1,24 @@
-"""Train ESP-Arti's own tiny byte-level Transformer.
+"""Train ESP-Arti's own project-owned byte-level Transformer.
 
-This script does not download a pretrained model.
-The corpus in training/corpus.txt is the training source for this
-project-owned model.
+The model is trained only from training/corpus.txt. No pretrained model
+or remote inference service is used.
 
-The exporter writes a simple ESP-Arti runtime format.
-The ESP32 loader reads this exact format.
+The binary layout written here is consumed by output/ESP-Arti-WiFi.ino.
+The training and firmware implementations intentionally use the same:
+  * learned token embeddings
+  * learned positional embeddings
+  * standard LayerNorm (weight + bias)
+  * causal multi-head self-attention
+  * GELU feed-forward blocks
+  * residual connections
+  * final LayerNorm
 """
+
 from pathlib import Path
 import math
 import random
 import struct
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -21,13 +29,13 @@ torch.manual_seed(SEED)
 
 VOCAB = 256
 CONTEXT = 128
-D = 32
+D = 64
 HEADS = 4
-LAYERS = 1
-FF = 64
-STEPS = 3000
+LAYERS = 2
+FF = 128
+STEPS = 8000
 BATCH = 16
-LR = 3e-3
+LR = 2e-3
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS_PATH = ROOT / "training" / "corpus.txt"
@@ -38,7 +46,11 @@ raw = CORPUS_PATH.read_bytes()
 if not raw:
     raise RuntimeError("training/corpus.txt is empty")
 
-data = torch.tensor(list(raw) * 80, dtype=torch.long)
+if len(raw) < CONTEXT + 2:
+    raise RuntimeError("training/corpus.txt is too short for the context window")
+
+data = torch.tensor(list(raw), dtype=torch.long)
+
 
 class Block(nn.Module):
     def __init__(self):
@@ -54,54 +66,96 @@ class Block(nn.Module):
 
     def forward(self, x):
         b, t, c = x.shape
+
         h = self.ln1(x)
+
         q = self.q(h).view(b, t, HEADS, c // HEADS).transpose(1, 2)
         k = self.k(h).view(b, t, HEADS, c // HEADS).transpose(1, 2)
         v = self.v(h).view(b, t, HEADS, c // HEADS).transpose(1, 2)
+
         a = (q @ k.transpose(-2, -1)) / math.sqrt(c // HEADS)
-        mask = torch.triu(torch.ones(t, t, device=x.device), diagonal=1).bool()
+        mask = torch.triu(
+            torch.ones(t, t, device=x.device),
+            diagonal=1,
+        ).bool()
         a = a.masked_fill(mask, -1e9).softmax(-1)
+
         h = (a @ v).transpose(1, 2).contiguous().view(b, t, c)
         x = x + self.o(h)
         x = x + self.ff2(F.gelu(self.ff1(self.ln2(x))))
         return x
 
+
 class ArtiModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.emb = nn.Embedding(VOCAB, D)
+        self.pos = nn.Parameter(torch.zeros(CONTEXT, D))
+        nn.init.normal_(self.pos, mean=0.0, std=0.02)
+
         self.blocks = nn.ModuleList([Block() for _ in range(LAYERS)])
         self.ln = nn.LayerNorm(D)
         self.out = nn.Linear(D, VOCAB, bias=False)
 
     def forward(self, idx, targets=None):
-        x = self.emb(idx)
+        _, t = idx.shape
+        x = self.emb(idx) + self.pos[:t]
+
         for block in self.blocks:
             x = block(x)
+
         logits = self.out(self.ln(x))
+
         loss = None
         if targets is not None:
-            loss = F.cross_entropy(logits.reshape(-1, VOCAB), targets.reshape(-1))
+            loss = F.cross_entropy(
+                logits.reshape(-1, VOCAB),
+                targets.reshape(-1),
+            )
+
         return logits, loss
 
+
 model = ArtiModel()
-optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
+optimizer = torch.optim.AdamW(
+    model.parameters(),
+    lr=LR,
+    weight_decay=0.01,
+)
 
 for step in range(STEPS):
-    starts = torch.randint(0, len(data) - CONTEXT - 1, (BATCH,))
-    x = torch.stack([data[i:i + CONTEXT] for i in starts])
-    y = torch.stack([data[i + 1:i + CONTEXT + 1] for i in starts])
+    starts = torch.randint(
+        0,
+        len(data) - CONTEXT - 1,
+        (BATCH,),
+    )
+
+    x = torch.stack([
+        data[i:i + CONTEXT]
+        for i in starts
+    ])
+
+    y = torch.stack([
+        data[i + 1:i + CONTEXT + 1]
+        for i in starts
+    ])
+
     _, loss = model(x, y)
+
     optimizer.zero_grad(set_to_none=True)
     loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     optimizer.step()
-    if step % 250 == 0:
+
+    if step % 500 == 0 or step == STEPS - 1:
         print(f"step={step} loss={loss.item():.4f}")
 
+
+HEADER_FORMAT = "<8sIIIIIII"
 header = struct.pack(
-    "<8sIIIIIII",
+    HEADER_FORMAT,
     b"ESPARTI1",
-    1,
+    2,
     VOCAB,
     CONTEXT,
     D,
@@ -110,19 +164,28 @@ header = struct.pack(
     FF,
 )
 
-tensors = [model.emb.weight]
+# Binary tensor order MUST stay synchronized with the ESP32 loader.
+tensors = [model.emb.weight, model.pos]
+
 for block in model.blocks:
     tensors += [
         block.ln1.weight,
+        block.ln1.bias,
         block.q.weight,
         block.k.weight,
         block.v.weight,
         block.o.weight,
         block.ln2.weight,
+        block.ln2.bias,
         block.ff1.weight,
         block.ff2.weight,
     ]
-tensors += [model.ln.weight, model.out.weight]
+
+tensors += [
+    model.ln.weight,
+    model.ln.bias,
+    model.out.weight,
+]
 
 with torch.no_grad():
     payload = b"".join(
@@ -135,18 +198,19 @@ model_path.write_bytes(header + payload)
 
 expected_floats = (
     VOCAB * D +
-    D +
-    D * D +
-    D * D +
-    D * D +
-    D * D +
-    D +
-    D * FF +
-    FF * D +
-    D +
+    CONTEXT * D +
+    LAYERS * (
+        D + D +
+        D * D + D * D + D * D + D * D +
+        D + D +
+        D * FF +
+        FF * D
+    ) +
+    D + D +
     D * VOCAB
 )
-expected_bytes = struct.calcsize("<8sIIIIIII") + expected_floats * 4
+
+expected_bytes = struct.calcsize(HEADER_FORMAT) + expected_floats * 4
 
 if model_path.stat().st_size != expected_bytes:
     raise RuntimeError(
@@ -156,7 +220,7 @@ if model_path.stat().st_size != expected_bytes:
 
 (OUT_DIR / "config.h").write_text(
     "# ESP-Arti project-owned model configuration\n"
-    "ESPARTI_FORMAT=1\n"
+    "ESPARTI_FORMAT=2\n"
     "MODEL=arti-v1\n"
     f"VOCAB={VOCAB}\n"
     f"CONTEXT={CONTEXT}\n"
@@ -167,4 +231,5 @@ if model_path.stat().st_size != expected_bytes:
     encoding="utf-8",
 )
 
+print(f"corpus bytes: {len(raw)}")
 print(f"wrote {model_path} ({model_path.stat().st_size} bytes)")
