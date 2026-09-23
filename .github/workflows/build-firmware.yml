@@ -1,0 +1,36 @@
+name: Build ESP-Arti firmware
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 core
+        run: |
+          arduino-cli config init --overwrite
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Compile
+        run: |
+          mkdir -p build
+          arduino-cli compile --fqbn esp32:esp32:esp32wrover --output-dir build ESP-Arti.ino
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: ESP-Arti-firmware
+          path: build/*
