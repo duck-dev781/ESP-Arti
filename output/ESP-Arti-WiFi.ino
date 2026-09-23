@@ -3,26 +3,25 @@
   ------------------------
   ESP32 WROVER-E / PSRAM
 
-  This firmware is the PERMANENT runtime/inference engine.
-  The trained Arti model is NOT stored permanently in the ESP32.
+  This is the permanent neural inference runtime.
+  The trained model is downloaded from the project's GitHub repository
+  at startup and loaded into PSRAM.
 
-  On every boot:
-    1. Connect to Wi-Fi.
-    2. Download our current project-owned model from GitHub.
-    3. Put the model in PSRAM.
-    4. Run neural inference locally on the ESP32.
+  IMPORTANT:
+    The model exporter in training/train.py and this loader are a matched
+    binary format. Do not change one without changing the other.
 
-  A reset/power loss clears PSRAM, so the model is downloaded again.
-
-  Model format:
+  Model format version 2:
     ESPARTI1
-    byte vocabulary (256)
+    vocab 256
     context 128
-    d_model 32
-    1 Transformer block
-    4 attention heads
-    FFN 64
-    float32 weights
+    d_model 64
+    layers 2
+    heads 4
+    FFN 128
+    learned positional embeddings
+    standard LayerNorm weight + bias
+    float32 tensors
 
   No BLE.
   No SD.
@@ -48,13 +47,14 @@ static const char *MODEL_URL =
 
 static const int MODEL_VOCAB = 256;
 static const int MODEL_CONTEXT = 128;
-static const int MODEL_DIM = 32;
-static const int MODEL_LAYERS = 1;
+static const int MODEL_DIM = 64;
+static const int MODEL_LAYERS = 2;
 static const int MODEL_HEADS = 4;
-static const int MODEL_FFN = 64;
+static const int MODEL_FFN = 128;
+static const uint32_t MODEL_VERSION = 2;
 
 static const int MAX_PROMPT_BYTES = 120;
-static const int MAX_GENERATION_BYTES = 256;
+static const int MAX_GENERATION_BYTES = 100;
 
 WebServer server(80);
 
@@ -76,15 +76,21 @@ struct ModelHeader {
 
 struct ModelWeights {
   float *embedding;
+  float *position;
+
   float *ln1;
+  float *ln1Bias;
   float *q;
   float *k;
   float *v;
   float *o;
   float *ln2;
+  float *ln2Bias;
   float *ff1;
   float *ff2;
+
   float *lnFinal;
+  float *lnFinalBias;
   float *output;
 };
 
@@ -99,7 +105,6 @@ static float *k = nullptr;
 static float *v = nullptr;
 static float *att = nullptr;
 static float *hb = nullptr;
-static float *hb2 = nullptr;
 static float *logits = nullptr;
 static float *keyCache = nullptr;
 static float *valueCache = nullptr;
@@ -113,7 +118,6 @@ static bool allocateRuntimeMemory() {
   v = (float *)ps_malloc(MODEL_DIM * sizeof(float));
   att = (float *)ps_malloc(MODEL_HEADS * MODEL_CONTEXT * sizeof(float));
   hb = (float *)ps_malloc(MODEL_FFN * sizeof(float));
-  hb2 = (float *)ps_malloc(MODEL_FFN * sizeof(float));
   logits = (float *)ps_malloc(MODEL_VOCAB * sizeof(float));
 
   const size_t cacheFloats =
@@ -125,13 +129,36 @@ static bool allocateRuntimeMemory() {
   valueCache = (float *)ps_malloc(cacheFloats * sizeof(float));
 
   if (!x || !xb || !xb2 || !q || !k || !v ||
-      !att || !hb || !hb2 || !logits ||
+      !att || !hb || !logits ||
       !keyCache || !valueCache) {
     lastError = "Could not allocate neural runtime buffers in PSRAM.";
     return false;
   }
 
   return true;
+}
+
+static size_t expectedModelBytes() {
+  const size_t floats =
+    (size_t)MODEL_VOCAB * MODEL_DIM +
+    (size_t)MODEL_CONTEXT * MODEL_DIM +
+    (size_t)MODEL_LAYERS * (
+      (size_t)MODEL_DIM +
+      (size_t)MODEL_DIM +
+      (size_t)MODEL_DIM * MODEL_DIM +
+      (size_t)MODEL_DIM * MODEL_DIM +
+      (size_t)MODEL_DIM * MODEL_DIM +
+      (size_t)MODEL_DIM * MODEL_DIM +
+      (size_t)MODEL_DIM +
+      (size_t)MODEL_DIM +
+      (size_t)MODEL_DIM * MODEL_FFN +
+      (size_t)MODEL_FFN * MODEL_DIM
+    ) +
+    (size_t)MODEL_DIM +
+    (size_t)MODEL_DIM +
+    (size_t)MODEL_DIM * MODEL_VOCAB;
+
+  return sizeof(ModelHeader) + floats * sizeof(float);
 }
 
 static bool downloadModel() {
@@ -263,7 +290,7 @@ static bool downloadModel() {
     return false;
   }
 
-  if (header.version != 1 ||
+  if (header.version != MODEL_VERSION ||
       header.vocab != MODEL_VOCAB ||
       header.context != MODEL_CONTEXT ||
       header.dim != MODEL_DIM ||
@@ -274,22 +301,7 @@ static bool downloadModel() {
     return false;
   }
 
-  const size_t expectedWeights =
-    (size_t)MODEL_VOCAB * MODEL_DIM +
-    (size_t)MODEL_DIM +
-    (size_t)MODEL_DIM * MODEL_DIM +
-    (size_t)MODEL_DIM * MODEL_DIM +
-    (size_t)MODEL_DIM * MODEL_DIM +
-    (size_t)MODEL_DIM * MODEL_DIM +
-    (size_t)MODEL_DIM +
-    (size_t)MODEL_DIM * MODEL_FFN +
-    (size_t)MODEL_FFN * MODEL_DIM +
-    (size_t)MODEL_DIM +
-    (size_t)MODEL_DIM * MODEL_VOCAB;
-
-  const size_t expectedBytes =
-    sizeof(ModelHeader) +
-    expectedWeights * sizeof(float);
+  const size_t expectedBytes = expectedModelBytes();
 
   if (modelDataSize != expectedBytes) {
     lastError =
@@ -304,33 +316,69 @@ static bool downloadModel() {
   uint8_t *ptr = modelData + sizeof(ModelHeader);
 
   weights.embedding = (float *)ptr;
-  ptr += MODEL_VOCAB * MODEL_DIM * sizeof(float);
+  ptr += (size_t)MODEL_VOCAB * MODEL_DIM * sizeof(float);
 
-  weights.ln1 = (float *)ptr;
-  ptr += MODEL_DIM * sizeof(float);
+  weights.position = (float *)ptr;
+  ptr += (size_t)MODEL_CONTEXT * MODEL_DIM * sizeof(float);
 
-  weights.q = (float *)ptr;
-  ptr += MODEL_DIM * MODEL_DIM * sizeof(float);
+  for (int layer = 0; layer < MODEL_LAYERS; ++layer) {
+    // All blocks use the same temporary pointers. The tensor pointers are
+    // walked directly from the model blob during each forward pass below.
+    if (layer == 0) {
+      weights.ln1 = (float *)ptr;
+    }
+    ptr += MODEL_DIM * sizeof(float);
 
-  weights.k = (float *)ptr;
-  ptr += MODEL_DIM * MODEL_DIM * sizeof(float);
+    if (layer == 0) {
+      weights.ln1Bias = (float *)ptr;
+    }
+    ptr += MODEL_DIM * sizeof(float);
 
-  weights.v = (float *)ptr;
-  ptr += MODEL_DIM * MODEL_DIM * sizeof(float);
+    if (layer == 0) {
+      weights.q = (float *)ptr;
+    }
+    ptr += MODEL_DIM * MODEL_DIM * sizeof(float);
 
-  weights.o = (float *)ptr;
-  ptr += MODEL_DIM * MODEL_DIM * sizeof(float);
+    if (layer == 0) {
+      weights.k = (float *)ptr;
+    }
+    ptr += MODEL_DIM * MODEL_DIM * sizeof(float);
 
-  weights.ln2 = (float *)ptr;
-  ptr += MODEL_DIM * sizeof(float);
+    if (layer == 0) {
+      weights.v = (float *)ptr;
+    }
+    ptr += MODEL_DIM * MODEL_DIM * sizeof(float);
 
-  weights.ff1 = (float *)ptr;
-  ptr += MODEL_DIM * MODEL_FFN * sizeof(float);
+    if (layer == 0) {
+      weights.o = (float *)ptr;
+    }
+    ptr += MODEL_DIM * MODEL_DIM * sizeof(float);
 
-  weights.ff2 = (float *)ptr;
-  ptr += MODEL_FFN * MODEL_DIM * sizeof(float);
+    if (layer == 0) {
+      weights.ln2 = (float *)ptr;
+    }
+    ptr += MODEL_DIM * sizeof(float);
+
+    if (layer == 0) {
+      weights.ln2Bias = (float *)ptr;
+    }
+    ptr += MODEL_DIM * sizeof(float);
+
+    if (layer == 0) {
+      weights.ff1 = (float *)ptr;
+    }
+    ptr += MODEL_DIM * MODEL_FFN * sizeof(float);
+
+    if (layer == 0) {
+      weights.ff2 = (float *)ptr;
+    }
+    ptr += MODEL_FFN * MODEL_DIM * sizeof(float);
+  }
 
   weights.lnFinal = (float *)ptr;
+  ptr += MODEL_DIM * sizeof(float);
+
+  weights.lnFinalBias = (float *)ptr;
   ptr += MODEL_DIM * sizeof(float);
 
   weights.output = (float *)ptr;
@@ -338,19 +386,13 @@ static bool downloadModel() {
   memset(
     keyCache,
     0,
-    (size_t)MODEL_LAYERS *
-    MODEL_CONTEXT *
-    MODEL_DIM *
-    sizeof(float)
+    (size_t)MODEL_LAYERS * MODEL_CONTEXT * MODEL_DIM * sizeof(float)
   );
 
   memset(
     valueCache,
     0,
-    (size_t)MODEL_LAYERS *
-    MODEL_CONTEXT *
-    MODEL_DIM *
-    sizeof(float)
+    (size_t)MODEL_LAYERS * MODEL_CONTEXT * MODEL_DIM * sizeof(float)
   );
 
   modelLoaded = true;
@@ -362,24 +404,37 @@ static bool downloadModel() {
   return true;
 }
 
-static void rmsNorm(
+static void layerNorm(
   float *out,
   const float *input,
-  const float *weight
+  const float *weight,
+  const float *bias
 ) {
-  float sum = 0.0f;
+  float mean = 0.0f;
 
   for (int i = 0; i < MODEL_DIM; ++i) {
-    sum += input[i] * input[i];
+    mean += input[i];
   }
 
-  float scale =
-    1.0f / sqrtf(
-      sum / (float)MODEL_DIM + 1e-5f
-    );
+  mean /= (float)MODEL_DIM;
+
+  float variance = 0.0f;
 
   for (int i = 0; i < MODEL_DIM; ++i) {
-    out[i] = input[i] * scale * weight[i];
+    float d = input[i] - mean;
+    variance += d * d;
+  }
+
+  variance /= (float)MODEL_DIM;
+
+  float scale = 1.0f / sqrtf(variance + 1e-5f);
+
+  for (int i = 0; i < MODEL_DIM; ++i) {
+    out[i] =
+      (input[i] - mean) *
+      scale *
+      weight[i] +
+      bias[i];
   }
 }
 
@@ -426,6 +481,82 @@ static void softmax(float *values, int count) {
   }
 }
 
+static const float *layerTensor(
+  int layer,
+  int tensorIndex
+) {
+  // tensorIndex:
+  // 0 ln1 weight
+  // 1 ln1 bias
+  // 2 q
+  // 3 k
+  // 4 v
+  // 5 o
+  // 6 ln2 weight
+  // 7 ln2 bias
+  // 8 ff1
+  // 9 ff2
+
+  uint8_t *ptr = modelData + sizeof(ModelHeader);
+  ptr += (size_t)MODEL_VOCAB * MODEL_DIM * sizeof(float);
+  ptr += (size_t)MODEL_CONTEXT * MODEL_DIM * sizeof(float);
+
+  const size_t blockBytes =
+    (size_t)MODEL_DIM * sizeof(float) +
+    (size_t)MODEL_DIM * sizeof(float) +
+    (size_t)MODEL_DIM * MODEL_DIM * sizeof(float) * 4 +
+    (size_t)MODEL_DIM * sizeof(float) +
+    (size_t)MODEL_DIM * sizeof(float) +
+    (size_t)MODEL_DIM * MODEL_FFN * sizeof(float) +
+    (size_t)MODEL_FFN * MODEL_DIM * sizeof(float);
+
+  ptr += (size_t)layer * blockBytes;
+
+  switch (tensorIndex) {
+    case 0:
+      return (const float *)ptr;
+    case 1:
+      ptr += MODEL_DIM * sizeof(float);
+      return (const float *)ptr;
+    case 2:
+      ptr += MODEL_DIM * sizeof(float) * 2;
+      return (const float *)ptr;
+    case 3:
+      ptr += MODEL_DIM * sizeof(float) * 2 +
+             MODEL_DIM * MODEL_DIM * sizeof(float);
+      return (const float *)ptr;
+    case 4:
+      ptr += MODEL_DIM * sizeof(float) * 2 +
+             MODEL_DIM * MODEL_DIM * sizeof(float) * 2;
+      return (const float *)ptr;
+    case 5:
+      ptr += MODEL_DIM * sizeof(float) * 2 +
+             MODEL_DIM * MODEL_DIM * sizeof(float) * 3;
+      return (const float *)ptr;
+    case 6:
+      ptr += MODEL_DIM * sizeof(float) * 2 +
+             MODEL_DIM * MODEL_DIM * sizeof(float) * 4;
+      return (const float *)ptr;
+    case 7:
+      ptr += MODEL_DIM * sizeof(float) * 3 +
+             MODEL_DIM * MODEL_DIM * sizeof(float) * 4;
+      return (const float *)ptr;
+    case 8:
+      ptr += MODEL_DIM * sizeof(float) * 3 +
+             MODEL_DIM * MODEL_DIM * sizeof(float) * 4 +
+             MODEL_DIM * sizeof(float);
+      return (const float *)ptr;
+    case 9:
+      ptr += MODEL_DIM * sizeof(float) * 3 +
+             MODEL_DIM * MODEL_DIM * sizeof(float) * 4 +
+             MODEL_DIM * sizeof(float) +
+             MODEL_DIM * MODEL_FFN * sizeof(float);
+      return (const float *)ptr;
+    default:
+      return nullptr;
+  }
+}
+
 static void forwardToken(
   uint8_t token,
   int position
@@ -434,141 +565,120 @@ static void forwardToken(
 
   memcpy(
     x,
-    weights.embedding +
-      (size_t)token * MODEL_DIM,
+    weights.embedding + (size_t)token * MODEL_DIM,
     MODEL_DIM * sizeof(float)
   );
 
-  rmsNorm(xb, x, weights.ln1);
-
-  matmul(q, xb, weights.q, MODEL_DIM, MODEL_DIM);
-  matmul(k, xb, weights.k, MODEL_DIM, MODEL_DIM);
-  matmul(v, xb, weights.v, MODEL_DIM, MODEL_DIM);
-
-  float *keyAtPosition =
-    keyCache +
-    (size_t)position * MODEL_DIM;
-
-  float *valueAtPosition =
-    valueCache +
-    (size_t)position * MODEL_DIM;
-
-  memcpy(
-    keyAtPosition,
-    k,
-    MODEL_DIM * sizeof(float)
-  );
-
-  memcpy(
-    valueAtPosition,
-    v,
-    MODEL_DIM * sizeof(float)
-  );
-
-  for (int head = 0;
-       head < MODEL_HEADS;
-       ++head) {
-
-    float *qHead = q + head * headSize;
-    float *attention =
-      att + head * MODEL_CONTEXT;
-
-    for (int t = 0; t <= position; ++t) {
-      const float *kHead =
-        keyCache +
-        (size_t)t * MODEL_DIM +
-        head * headSize;
-
-      float score = 0.0f;
-
-      for (int j = 0; j < headSize; ++j) {
-        score += qHead[j] * kHead[j];
-      }
-
-      attention[t] =
-        score / sqrtf((float)headSize);
-    }
-
-    softmax(attention, position + 1);
-
-    float *outHead =
-      xb + head * headSize;
-
-    memset(
-      outHead,
-      0,
-      headSize * sizeof(float)
-    );
-
-    for (int t = 0; t <= position; ++t) {
-      const float *vHead =
-        valueCache +
-        (size_t)t * MODEL_DIM +
-        head * headSize;
-
-      for (int j = 0; j < headSize; ++j) {
-        outHead[j] +=
-          attention[t] * vHead[j];
-      }
-    }
-  }
-
-  matmul(
-    xb2,
-    xb,
-    weights.o,
-    MODEL_DIM,
-    MODEL_DIM
-  );
+  const float *positionVector =
+    weights.position + (size_t)position * MODEL_DIM;
 
   for (int i = 0; i < MODEL_DIM; ++i) {
-    x[i] += xb2[i];
+    x[i] += positionVector[i];
   }
 
-  rmsNorm(xb, x, weights.ln2);
+  for (int layer = 0; layer < MODEL_LAYERS; ++layer) {
+    const float *ln1 = layerTensor(layer, 0);
+    const float *ln1Bias = layerTensor(layer, 1);
+    const float *qWeight = layerTensor(layer, 2);
+    const float *kWeight = layerTensor(layer, 3);
+    const float *vWeight = layerTensor(layer, 4);
+    const float *oWeight = layerTensor(layer, 5);
+    const float *ln2 = layerTensor(layer, 6);
+    const float *ln2Bias = layerTensor(layer, 7);
+    const float *ff1 = layerTensor(layer, 8);
+    const float *ff2 = layerTensor(layer, 9);
 
-  matmul(
-    hb,
+    layerNorm(xb, x, ln1, ln1Bias);
+
+    matmul(q, xb, qWeight, MODEL_DIM, MODEL_DIM);
+    matmul(k, xb, kWeight, MODEL_DIM, MODEL_DIM);
+    matmul(v, xb, vWeight, MODEL_DIM, MODEL_DIM);
+
+    float *keyAtPosition =
+      keyCache +
+      ((size_t)layer * MODEL_CONTEXT + position) * MODEL_DIM;
+
+    float *valueAtPosition =
+      valueCache +
+      ((size_t)layer * MODEL_CONTEXT + position) * MODEL_DIM;
+
+    memcpy(keyAtPosition, k, MODEL_DIM * sizeof(float));
+    memcpy(valueAtPosition, v, MODEL_DIM * sizeof(float));
+
+    for (int head = 0; head < MODEL_HEADS; ++head) {
+      float *qHead = q + head * headSize;
+      float *attention = att + head * MODEL_CONTEXT;
+
+      for (int t = 0; t <= position; ++t) {
+        const float *kHead =
+          keyCache +
+          ((size_t)layer * MODEL_CONTEXT + t) * MODEL_DIM +
+          head * headSize;
+
+        float score = 0.0f;
+
+        for (int j = 0; j < headSize; ++j) {
+          score += qHead[j] * kHead[j];
+        }
+
+        attention[t] =
+          score / sqrtf((float)headSize);
+      }
+
+      softmax(attention, position + 1);
+
+      float *outHead = xb2 + head * headSize;
+      memset(outHead, 0, headSize * sizeof(float));
+
+      for (int t = 0; t <= position; ++t) {
+        const float *vHead =
+          valueCache +
+          ((size_t)layer * MODEL_CONTEXT + t) * MODEL_DIM +
+          head * headSize;
+
+        for (int j = 0; j < headSize; ++j) {
+          outHead[j] += attention[t] * vHead[j];
+        }
+      }
+    }
+
+    matmul(xb, xb2, oWeight, MODEL_DIM, MODEL_DIM);
+
+    for (int i = 0; i < MODEL_DIM; ++i) {
+      x[i] += xb[i];
+    }
+
+    layerNorm(xb, x, ln2, ln2Bias);
+
+    matmul(hb, xb, ff1, MODEL_DIM, MODEL_FFN);
+
+    for (int i = 0; i < MODEL_FFN; ++i) {
+      float z = hb[i];
+      hb[i] =
+        0.5f * z *
+        (1.0f + tanhf(
+          0.79788456f *
+          (z + 0.044715f * z * z * z)
+        ));
+    }
+
+    matmul(xb, hb, ff2, MODEL_FFN, MODEL_DIM);
+
+    for (int i = 0; i < MODEL_DIM; ++i) {
+      x[i] += xb[i];
+    }
+  }
+
+  layerNorm(
     xb,
-    weights.ff1,
-    MODEL_DIM,
-    MODEL_FFN
-  );
-
-  for (int i = 0; i < MODEL_FFN; ++i) {
-    // GELU approximation matching the training model.
-    float z = hb[i];
-    float gelu =
-      0.5f * z *
-      (1.0f + tanhf(
-        0.79788456f *
-        (z + 0.044715f * z * z * z)
-      ));
-    hb[i] = gelu;
-  }
-
-  // The second feed-forward matrix maps FFN -> model dimension.
-  matmul(
-    xb,
-    hb,
-    weights.ff2,
-    MODEL_FFN,
-    MODEL_DIM
-  );
-
-  for (int i = 0; i < MODEL_DIM; ++i) {
-    x[i] += xb[i];
-  }
-
-  rmsNorm(
     x,
-    x,
-    weights.lnFinal
+    weights.lnFinal,
+    weights.lnFinalBias
   );
 
   matmul(
     logits,
-    x,
+    xb,
     weights.output,
     MODEL_DIM,
     MODEL_VOCAB
@@ -599,7 +709,8 @@ static String generateNeuralReply(
   memset(
     keyCache,
     0,
-    (size_t)MODEL_CONTEXT *
+    (size_t)MODEL_LAYERS *
+    MODEL_CONTEXT *
     MODEL_DIM *
     sizeof(float)
   );
@@ -607,7 +718,8 @@ static String generateNeuralReply(
   memset(
     valueCache,
     0,
-    (size_t)MODEL_CONTEXT *
+    (size_t)MODEL_LAYERS *
+    MODEL_CONTEXT *
     MODEL_DIM *
     sizeof(float)
   );
@@ -633,12 +745,10 @@ static String generateNeuralReply(
        i < prompt.length() &&
        position < MODEL_CONTEXT - 1;
        ++i) {
-
     forwardToken(
       (uint8_t)prompt[i],
       position
     );
-
     ++position;
   }
 
@@ -649,9 +759,7 @@ static String generateNeuralReply(
        i < MAX_GENERATION_BYTES &&
        position < MODEL_CONTEXT;
        ++i) {
-
-    uint8_t next =
-      chooseNextToken();
+    uint8_t next = chooseNextToken();
 
     if (next == 0 || next == '\n') {
       break;
@@ -660,17 +768,12 @@ static String generateNeuralReply(
     char c = (char)next;
 
     if (isprint((unsigned char)c) ||
-        c == '\n' ||
         c == '\r' ||
         c == '\t') {
       reply += c;
     }
 
-    forwardToken(
-      next,
-      position
-    );
-
+    forwardToken(next, position);
     ++position;
   }
 
@@ -693,7 +796,7 @@ static String jsonEscape(
     if (c == '\\') {
       out += "\\\\";
     } else if (c == '"') {
-      out += "\\\"";
+      out += "\\"";
     } else if (c == '\n') {
       out += "\\n";
     } else if (c == '\r') {
@@ -715,7 +818,7 @@ static String getJsonString(
   const String &key
 ) {
   String needle =
-    String("\"") + key + "\"";
+    String(""") + key + """;
 
   int start = body.indexOf(needle);
 
@@ -741,7 +844,6 @@ static String getJsonString(
   for (int i = quote + 1;
        i < (int)body.length();
        ++i) {
-
     char c = body[i];
 
     if (escaped) {
@@ -816,27 +918,27 @@ static void handleRoot() {
 static void handleStatus() {
   String json = "{";
 
-  json += "\"model_loaded\":";
+  json += ""model_loaded":";
   json += modelLoaded ? "true" : "false";
 
-  json += ",\"model\":\"ESP-Arti project-owned neural model\"";
+  json += ","model":"ESP-Arti project-owned neural model v2"";
 
-  json += ",\"psram\":";
+  json += ","psram":";
   json += psramFound() ? "true" : "false";
 
-  json += ",\"free_psram\":";
+  json += ","free_psram":";
   json += String(ESP.getFreePsram());
 
-  json += ",\"wifi\":";
+  json += ","wifi":";
   json += WiFi.status() == WL_CONNECTED ? "true" : "false";
 
-  json += ",\"ip\":\"";
+  json += ","ip":"";
   json += WiFi.localIP().toString();
-  json += "\"";
+  json += """;
 
-  json += ",\"error\":\"";
+  json += ","error":"";
   json += jsonEscape(lastError);
-  json += "\"}";
+  json += ""}";
 
   server.send(200, "application/json", json);
 }
@@ -846,7 +948,7 @@ static void handleChat() {
     server.send(
       400,
       "application/json",
-      " {\"error\":\"Expected JSON body.\"}"
+      "{\"error\":\"Expected JSON body.\"}"
     );
     return;
   }
@@ -861,7 +963,7 @@ static void handleChat() {
     server.send(
       400,
       "application/json",
-      " {\"error\":\"Missing message.\"}"
+      "{\"error\":\"Missing message.\"}"
     );
     return;
   }
@@ -906,12 +1008,11 @@ void setup() {
   Serial.println("==============================");
   Serial.println("ESP-Arti");
   Serial.println("ESP32 WROVER-E / Wi-Fi");
-  Serial.println("PROJECT-OWNED LOCAL AI");
+  Serial.println("PROJECT-OWNED LOCAL AI v2");
   Serial.println("==============================");
 
   if (!psramFound()) {
-    lastError =
-      "PSRAM was not detected. It is required.";
+    lastError = "PSRAM was not detected. It is required.";
     Serial.println(lastError);
     return;
   }
