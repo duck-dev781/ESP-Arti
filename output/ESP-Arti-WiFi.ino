@@ -8,11 +8,11 @@
   - No LittleFS
   - Browser chat endpoint: POST /chat
   - GitHub is used as the runtime model-data host.
-  
+
   IMPORTANT:
   The flashed firmware contains the inference engine. GitHub-hosted files are
   runtime model/config data; ESP32 cannot compile .cpp/.h files at runtime.
-  
+
   Put your Wi-Fi credentials below.
 */
 
@@ -48,6 +48,7 @@ static bool downloadText(const String &url, String &out) {
   }
 
   int code = http.GET();
+
   if (code != HTTP_CODE_OK) {
     lastError = "HTTP " + String(code) + ": " + url;
     http.end();
@@ -71,6 +72,7 @@ static bool loadRuntimeFiles() {
   Serial.println("Downloading model configuration from GitHub...");
 
   String cfg;
+
   if (!downloadText(String(GITHUB_RAW_BASE) + MODEL_CONFIG_PATH, cfg)) {
     Serial.println("MODEL LOAD FAILED");
     Serial.println(lastError);
@@ -84,14 +86,6 @@ static bool loadRuntimeFiles() {
     Serial.println(lastError);
     return false;
   }
-
-  /*
-    Keep the runtime data in PSRAM rather than LittleFS/SD.
-
-    This first firmware stage verifies the GitHub runtime connection and
-    reserves PSRAM for the model. The actual trained weight files must exist
-    in the repository before local neural inference can run.
-  */
 
   size_t freePsram = ESP.getFreePsram();
 
@@ -113,23 +107,6 @@ static bool loadRuntimeFiles() {
   return true;
 }
 
-static String htmlEscape(const String &s) {
-  String r;
-  r.reserve(s.length());
-
-  for (size_t i = 0; i < s.length(); ++i) {
-    char c = s[i];
-
-    if (c == '&') r += "&amp;";
-    else if (c == '<') r += "&lt;";
-    else if (c == '>') r += "&gt;";
-    else if (c == '"') r += "&quot;";
-    else r += c;
-  }
-
-  return r;
-}
-
 static String jsonEscape(const String &s) {
   String r;
   r.reserve(s.length() + 16);
@@ -138,14 +115,32 @@ static String jsonEscape(const String &s) {
     char c = s[i];
 
     switch (c) {
-      case '\': r += "\\"; break;
-      case '"':  r += "\""; break;
-      case '\n': r += "\\n"; break;
-      case '\r': r += "\\r"; break;
-      case '\t': r += "\\t"; break;
+      case '\\':
+        r += "\\\\";
+        break;
+
+      case '"':
+        r += "\\\"";
+        break;
+
+      case '\n':
+        r += "\\n";
+        break;
+
+      case '\r':
+        r += "\\r";
+        break;
+
+      case '\t':
+        r += "\\t";
+        break;
+
       default:
-        if ((unsigned char)c < 32) r += ' ';
-        else r += c;
+        if ((unsigned char)c < 32) {
+          r += ' ';
+        } else {
+          r += c;
+        }
         break;
     }
   }
@@ -158,22 +153,25 @@ static String getJsonString(const String &body, const String &key) {
   int p = body.indexOf(needle);
 
   if (p < 0) {
-    needle = """ + key + """;
-    p = body.indexOf(needle);
+    return "";
   }
 
-  if (p < 0) return "";
-
   p = body.indexOf(':', p);
-  if (p < 0) return "";
+
+  if (p < 0) {
+    return "";
+  }
 
   p++;
 
-  while (p < (int)body.length() && isspace((unsigned char)body[p])) {
+  while (p < (int)body.length() &&
+         isspace((unsigned char)body[p])) {
     p++;
   }
 
-  if (p >= (int)body.length() || body[p] != '"') return "";
+  if (p >= (int)body.length() || body[p] != '"') {
+    return "";
+  }
 
   p++;
 
@@ -184,10 +182,17 @@ static String getJsonString(const String &body, const String &key) {
     char c = body[p];
 
     if (escaped) {
-      if (c == 'n') result += '\n';
-      else if (c == 'r') result += '\r';
-      else if (c == 't') result += '\t';
-      else result += c;
+      if (c == 'n') {
+        result += '\n';
+      } else if (c == 'r') {
+        result += '\r';
+      } else if (c == 't') {
+        result += '\t';
+      } else if (c == '"' || c == '\\' || c == '/') {
+        result += c;
+      } else {
+        result += c;
+      }
 
       escaped = false;
       continue;
@@ -198,7 +203,9 @@ static String getJsonString(const String &body, const String &key) {
       continue;
     }
 
-    if (c == '"') break;
+    if (c == '"') {
+      break;
+    }
 
     result += c;
   }
@@ -229,7 +236,10 @@ static String searchOnline(const String &query) {
   for (size_t i = 0; i < query.length(); ++i) {
     char c = query[i];
 
-    if (isalnum((unsigned char)c) || c == '-' || c == '_' || c == '.') {
+    if (isalnum((unsigned char)c) ||
+        c == '-' ||
+        c == '_' ||
+        c == '.') {
       encoded += c;
     } else if (c == ' ') {
       encoded += '+';
@@ -257,7 +267,13 @@ static String searchOnline(const String &query) {
   http.end();
 
   String plain;
-  plain.reserve(min((size_t)6000, page.length()));
+  size_t limit = page.length();
+
+  if (limit > 5000) {
+    limit = 5000;
+  }
+
+  plain.reserve(limit);
 
   bool inTag = false;
 
@@ -291,15 +307,37 @@ static bool queryNeedsSearch(const String &q) {
   String s = q;
   s.toLowerCase();
 
-  if (s.startsWith("search ")) return true;
-  if (s.startsWith("look up ")) return true;
-  if (s.startsWith("find ")) return true;
+  if (s.startsWith("search ")) {
+    return true;
+  }
 
-  if (s.indexOf("latest") >= 0) return true;
-  if (s.indexOf("current") >= 0) return true;
-  if (s.indexOf("today") >= 0) return true;
-  if (s.indexOf("right now") >= 0) return true;
-  if (s.indexOf("news") >= 0) return true;
+  if (s.startsWith("look up ")) {
+    return true;
+  }
+
+  if (s.startsWith("find ")) {
+    return true;
+  }
+
+  if (s.indexOf("latest") >= 0) {
+    return true;
+  }
+
+  if (s.indexOf("current") >= 0) {
+    return true;
+  }
+
+  if (s.indexOf("today") >= 0) {
+    return true;
+  }
+
+  if (s.indexOf("right now") >= 0) {
+    return true;
+  }
+
+  if (s.indexOf("news") >= 0) {
+    return true;
+  }
 
   return false;
 }
@@ -309,9 +347,17 @@ static String searchQueryFromMessage(const String &message) {
   String low = q;
   low.toLowerCase();
 
-  if (low.startsWith("search ")) return q.substring(7);
-  if (low.startsWith("look up ")) return q.substring(8);
-  if (low.startsWith("find ")) return q.substring(5);
+  if (low.startsWith("search ")) {
+    return q.substring(7);
+  }
+
+  if (low.startsWith("look up ")) {
+    return q.substring(8);
+  }
+
+  if (low.startsWith("find ")) {
+    return q.substring(5);
+  }
 
   return q;
 }
@@ -341,7 +387,9 @@ static String generateLocalReply(const String &userMessage,
   }
 
   reply += "\n\nModel runtime status: ";
-  reply += modelLoaded ? "GitHub runtime loaded." : "model not loaded.";
+  reply += modelLoaded
+             ? "GitHub runtime loaded."
+             : "model not loaded.";
 
   return reply;
 }
@@ -369,13 +417,17 @@ static void handleRoot() {
   page += "<button>Send</button></form>";
   page += "<script>";
   page += "const c=document.getElementById('chat');";
-  page += "function add(w,t,k){let d=document.createElement('div');d.className='msg '+k;";
-  page += "d.textContent=w+': '+t;c.appendChild(d);c.scrollTop=c.scrollHeight}";
-  page += "async function sendMsg(e){e.preventDefault();let i=document.getElementById('msg');";
-  page += "let t=i.value.trim();if(!t)return;i.value='';add('You',t,'user');";
-  page += "try{let r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},";
-  page += "body:JSON.stringify({message:t})});let x=await r.json();";
-  page += "add('Arti',x.reply||x.error,'arti')}catch(e){add('System','Connection error: '+e,'arti')}}";
+  page += "function add(w,t,k){let d=document.createElement('div');";
+  page += "d.className='msg '+k;d.textContent=w+': '+t;";
+  page += "c.appendChild(d);c.scrollTop=c.scrollHeight}";
+  page += "async function sendMsg(e){e.preventDefault();";
+  page += "let i=document.getElementById('msg');let t=i.value.trim();";
+  page += "if(!t)return;i.value='';add('You',t,'user');";
+  page += "try{let r=await fetch('/chat',{method:'POST',";
+  page += "headers:{'Content-Type':'application/json'},";
+  page += "body:JSON.stringify({message:t})});";
+  page += "let x=await r.json();add('Arti',x.reply||x.error,'arti')";
+  page += "}catch(e){add('System','Connection error: '+e,'arti')}}";
   page += "</script></main></body></html>";
 
   server.send(200, "text/html", page);
@@ -383,28 +435,37 @@ static void handleRoot() {
 
 static void handleStatus() {
   String json = "{";
-  json += ""model_loaded":";
+
+  json += "\"model_loaded\":";
   json += modelLoaded ? "true" : "false";
-  json += ","psram":";
+
+  json += ",\"psram\":";
   json += psramFound() ? "true" : "false";
-  json += ","free_psram":";
+
+  json += ",\"free_psram\":";
   json += String(ESP.getFreePsram());
-  json += ","wifi":";
+
+  json += ",\"wifi\":";
   json += WiFi.status() == WL_CONNECTED ? "true" : "false";
-  json += ","ip":"";
+
+  json += ",\"ip\":\"";
   json += WiFi.localIP().toString();
-  json += """;
-  json += ","error":"";
+  json += "\"";
+
+  json += ",\"error\":\"";
   json += jsonEscape(lastError);
-  json += ""}";
+  json += "\"}";
 
   server.send(200, "application/json", json);
 }
 
 static void handleChat() {
   if (!server.hasArg("plain")) {
-    server.send(400, "application/json",
-                "{"error":"Expected JSON body."}");
+    server.send(
+      400,
+      "application/json",
+      "{\"error\":\"Expected JSON body.\"}"
+    );
     return;
   }
 
@@ -412,8 +473,11 @@ static void handleChat() {
   String message = getJsonString(body, "message");
 
   if (message.length() == 0) {
-    server.send(400, "application/json",
-                "{"error":"Missing message."}");
+    server.send(
+      400,
+      "application/json",
+      "{\"error\":\"Missing message.\"}"
+    );
     return;
   }
 
@@ -421,7 +485,10 @@ static void handleChat() {
 
   if (queryNeedsSearch(message)) {
     Serial.println("Online search requested.");
-    onlineContext = searchOnline(searchQueryFromMessage(message));
+
+    onlineContext = searchOnline(
+      searchQueryFromMessage(message)
+    );
 
     if (onlineContext.length()) {
       Serial.println("Online context received.");
@@ -432,15 +499,19 @@ static void handleChat() {
 
   String reply = generateLocalReply(message, onlineContext);
 
-  String json = "{"reply":"";
+  String json = "{\"reply\":\"";
   json += jsonEscape(reply);
-  json += ""}";
+  json += "\"}";
 
   server.send(200, "application/json", json);
 }
 
 static void handleNotFound() {
-  server.send(404, "text/plain", "ESP-Arti: endpoint not found.");
+  server.send(
+    404,
+    "text/plain",
+    "ESP-Arti: endpoint not found."
+  );
 }
 
 void setup() {
@@ -470,7 +541,8 @@ void setup() {
 
   unsigned long start = millis();
 
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 30000) {
+  while (WiFi.status() != WL_CONNECTED &&
+         millis() - start < 30000) {
     delay(400);
     Serial.print(".");
   }
