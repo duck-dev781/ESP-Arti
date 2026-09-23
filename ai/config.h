@@ -1,10 +1,9 @@
-# ESP-Arti runtime model configuration
+# ESP-Arti project-owned model configuration
 ESPARTI_FORMAT=1
+MODEL=arti-v1
 VOCAB=256
-CONTEXT=256
+CONTEXT=128
 D_MODEL=32
 LAYERS=1
 HEADS=4
 FFN=64
-WEIGHT_FILES=1
-WEIGHTS=24768
