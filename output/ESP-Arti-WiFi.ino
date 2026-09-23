@@ -724,18 +724,29 @@ static String generateNeuralReply(
     sizeof(float)
   );
 
-  String prompt =
-    "You are Arti, a local neural assistant running on an ESP32 WROVER-E. "
-    "Your model runs locally. Follow the user's current role. "
-    "User: ";
+  // Keep the prompt in the same conversational format used by the
+  // training corpus. Preserve the "User:" and "Arti:" markers instead
+  // of truncating the beginning of the prompt.
+  const int MAX_MESSAGE_BYTES = 80;
 
-  prompt += message;
+  String userMessage = message;
+
+  if (userMessage.length() > MAX_MESSAGE_BYTES) {
+    userMessage =
+      userMessage.substring(
+        userMessage.length() - MAX_MESSAGE_BYTES
+      );
+  }
+
+  String prompt = "User: ";
+  prompt += userMessage;
   prompt += "\nArti:";
 
   if (prompt.length() > MAX_PROMPT_BYTES) {
     prompt =
       prompt.substring(
-        prompt.length() - MAX_PROMPT_BYTES
+        0,
+        MAX_PROMPT_BYTES
       );
   }
 
