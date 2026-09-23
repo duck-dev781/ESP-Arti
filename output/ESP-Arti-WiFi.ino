@@ -693,7 +693,7 @@ static String jsonEscape(
     if (c == '\\') {
       out += "\\\\";
     } else if (c == '"') {
-      out += "\\"";
+      out += "\\\"";
     } else if (c == '\n') {
       out += "\\n";
     } else if (c == '\r') {
@@ -715,7 +715,7 @@ static String getJsonString(
   const String &key
 ) {
   String needle =
-    String(""") + key + """;
+    String("\"") + key + "\"";
 
   int start = body.indexOf(needle);
 
@@ -816,27 +816,27 @@ static void handleRoot() {
 static void handleStatus() {
   String json = "{";
 
-  json += ""model_loaded":";
+  json += "\"model_loaded\":";
   json += modelLoaded ? "true" : "false";
 
-  json += ","model":"ESP-Arti project-owned neural model"";
+  json += ",\"model\":\"ESP-Arti project-owned neural model\"";
 
-  json += ","psram":";
+  json += ",\"psram\":";
   json += psramFound() ? "true" : "false";
 
-  json += ","free_psram":";
+  json += ",\"free_psram\":";
   json += String(ESP.getFreePsram());
 
-  json += ","wifi":";
+  json += ",\"wifi\":";
   json += WiFi.status() == WL_CONNECTED ? "true" : "false";
 
-  json += ","ip":"";
+  json += ",\"ip\":\"";
   json += WiFi.localIP().toString();
-  json += """;
+  json += "\"";
 
-  json += ","error":"";
+  json += ",\"error\":\"";
   json += jsonEscape(lastError);
-  json += ""}";
+  json += "\"}";
 
   server.send(200, "application/json", json);
 }
@@ -846,7 +846,7 @@ static void handleChat() {
     server.send(
       400,
       "application/json",
-      "{"error":"Expected JSON body."}"
+      " {\"error\":\"Expected JSON body.\"}"
     );
     return;
   }
@@ -861,7 +861,7 @@ static void handleChat() {
     server.send(
       400,
       "application/json",
-      "{"error":"Missing message."}"
+      " {\"error\":\"Missing message.\"}"
     );
     return;
   }
@@ -879,9 +879,9 @@ static void handleChat() {
   Serial.println(" ms");
 
   String json =
-    String("{"reply":"") +
+    String("{\"reply\":\"") +
     jsonEscape(reply) +
-    ""}";
+    "\"}";
 
   server.send(
     200,
