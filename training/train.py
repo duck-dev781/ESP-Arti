@@ -5,7 +5,7 @@ The corpus in training/corpus.txt is the training source for this
 project-owned model.
 
 The exporter writes a simple ESP-Arti runtime format.
-The ESP32 loader will later be updated to read this exact format.
+The ESP32 loader reads this exact format.
 """
 from pathlib import Path
 import math
