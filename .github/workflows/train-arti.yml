@@ -2,6 +2,9 @@ name: Train ESP-Arti
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "training/**"
 
 permissions:
   contents: write
