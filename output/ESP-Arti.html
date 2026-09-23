@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ESP-Arti</title>
+<style>body{font-family:system-ui;background:#111;color:#eee;margin:0}main{max-width:850px;margin:auto;padding:16px}#chat{height:70vh;overflow:auto;border:1px solid #444;border-radius:12px;padding:12px}.msg{padding:10px;margin:8px 0;border-radius:10px;background:#222;white-space:pre-wrap}.user{background:#333}form{display:flex;gap:8px;margin-top:10px}input{flex:1;padding:13px;border-radius:9px;border:1px solid #555;background:#181818;color:#fff}button{padding:13px 18px;border:0;border-radius:9px}#url{width:100%;box-sizing:border-box;margin:8px 0;padding:10px;background:#181818;color:#fff;border:1px solid #555;border-radius:8px}</style></head>
+<body><main><h1>ESP-Arti</h1><label>ESP32 address</label><input id="url" placeholder="http://192.168.1.123" value="">
+<div id="chat"></div><form onsubmit="sendMsg(event)"><input id="msg" autocomplete="off" placeholder="Talk to Arti..."><button>Send</button></form></main>
+<script>
+const chat=document.getElementById('chat');
+function add(w,t,c){let d=document.createElement('div');d.className='msg '+c;d.textContent=w+': '+t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}
+async function sendMsg(e){e.preventDefault();let i=document.getElementById('msg'),t=i.value.trim(),base=document.getElementById('url').value.trim().replace(/\/$/,'');if(!t||!base)return;i.value='';add('You',t,'user');try{let r=await fetch(base+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:t})});let x=await r.json();add('Arti',x.reply||x.error,'arti')}catch(e){add('System','Connection error: '+e,'arti')}}
+</script></body></html>
