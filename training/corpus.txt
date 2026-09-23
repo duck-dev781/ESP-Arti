@@ -284,3 +284,1559 @@ Arti: Yes. The exporter and ESP32 loader use the same model version, tensor orde
 
 User: What should you say if you cannot answer?
 Arti: I should be honest about my limits instead of inventing an answer.
+
+# General instruction and conversation training
+User: What is gravity?
+Arti: Gravity is the attraction between objects that have mass. It is why things fall toward Earth and why planets stay in orbit.
+
+User: Can you explain gravity?
+Arti: Gravity is the attraction between objects that have mass. It is why things fall toward Earth and why planets stay in orbit.
+
+User: Explain gravity simply.
+Arti: Gravity is the attraction between objects that have mass. It is why things fall toward Earth and why planets stay in orbit.
+
+User: Tell me about gravity.
+Arti: Gravity is the attraction between objects that have mass. It is why things fall toward Earth and why planets stay in orbit.
+
+User: What does gravity mean?
+Arti: Gravity is the attraction between objects that have mass. It is why things fall toward Earth and why planets stay in orbit.
+
+User: What is atom?
+Arti: An atom is a basic unit of matter made from a nucleus surrounded by electrons.
+
+User: Can you explain atom?
+Arti: An atom is a basic unit of matter made from a nucleus surrounded by electrons.
+
+User: Explain atom simply.
+Arti: An atom is a basic unit of matter made from a nucleus surrounded by electrons.
+
+User: Tell me about atom.
+Arti: An atom is a basic unit of matter made from a nucleus surrounded by electrons.
+
+User: What does atom mean?
+Arti: An atom is a basic unit of matter made from a nucleus surrounded by electrons.
+
+User: What is molecule?
+Arti: A molecule is a group of atoms held together by chemical bonds.
+
+User: Can you explain molecule?
+Arti: A molecule is a group of atoms held together by chemical bonds.
+
+User: Explain molecule simply.
+Arti: A molecule is a group of atoms held together by chemical bonds.
+
+User: Tell me about molecule.
+Arti: A molecule is a group of atoms held together by chemical bonds.
+
+User: What does molecule mean?
+Arti: A molecule is a group of atoms held together by chemical bonds.
+
+User: What is photosynthesis?
+Arti: Photosynthesis lets plants use light energy to make sugars from water and carbon dioxide.
+
+User: Can you explain photosynthesis?
+Arti: Photosynthesis lets plants use light energy to make sugars from water and carbon dioxide.
+
+User: Explain photosynthesis simply.
+Arti: Photosynthesis lets plants use light energy to make sugars from water and carbon dioxide.
+
+User: Tell me about photosynthesis.
+Arti: Photosynthesis lets plants use light energy to make sugars from water and carbon dioxide.
+
+User: What does photosynthesis mean?
+Arti: Photosynthesis lets plants use light energy to make sugars from water and carbon dioxide.
+
+User: What is evaporation?
+Arti: Evaporation happens when molecules at a liquid surface gain enough energy to become gas.
+
+User: Can you explain evaporation?
+Arti: Evaporation happens when molecules at a liquid surface gain enough energy to become gas.
+
+User: Explain evaporation simply.
+Arti: Evaporation happens when molecules at a liquid surface gain enough energy to become gas.
+
+User: Tell me about evaporation.
+Arti: Evaporation happens when molecules at a liquid surface gain enough energy to become gas.
+
+User: What does evaporation mean?
+Arti: Evaporation happens when molecules at a liquid surface gain enough energy to become gas.
+
+User: What is condensation?
+Arti: Condensation happens when a gas cools and becomes a liquid.
+
+User: Can you explain condensation?
+Arti: Condensation happens when a gas cools and becomes a liquid.
+
+User: Explain condensation simply.
+Arti: Condensation happens when a gas cools and becomes a liquid.
+
+User: Tell me about condensation.
+Arti: Condensation happens when a gas cools and becomes a liquid.
+
+User: What does condensation mean?
+Arti: Condensation happens when a gas cools and becomes a liquid.
+
+User: What is electricity?
+Arti: Electricity is the movement or presence of electric charge. Circuits provide paths for charge to move.
+
+User: Can you explain electricity?
+Arti: Electricity is the movement or presence of electric charge. Circuits provide paths for charge to move.
+
+User: Explain electricity simply.
+Arti: Electricity is the movement or presence of electric charge. Circuits provide paths for charge to move.
+
+User: Tell me about electricity.
+Arti: Electricity is the movement or presence of electric charge. Circuits provide paths for charge to move.
+
+User: What does electricity mean?
+Arti: Electricity is the movement or presence of electric charge. Circuits provide paths for charge to move.
+
+User: What is voltage?
+Arti: Voltage is a difference in electric potential that can push charge through a circuit.
+
+User: Can you explain voltage?
+Arti: Voltage is a difference in electric potential that can push charge through a circuit.
+
+User: Explain voltage simply.
+Arti: Voltage is a difference in electric potential that can push charge through a circuit.
+
+User: Tell me about voltage.
+Arti: Voltage is a difference in electric potential that can push charge through a circuit.
+
+User: What does voltage mean?
+Arti: Voltage is a difference in electric potential that can push charge through a circuit.
+
+User: What is current?
+Arti: Electric current describes the rate at which electric charge flows.
+
+User: Can you explain current?
+Arti: Electric current describes the rate at which electric charge flows.
+
+User: Explain current simply.
+Arti: Electric current describes the rate at which electric charge flows.
+
+User: Tell me about current.
+Arti: Electric current describes the rate at which electric charge flows.
+
+User: What does current mean?
+Arti: Electric current describes the rate at which electric charge flows.
+
+User: What is resistance?
+Arti: Electrical resistance describes how strongly a material opposes current.
+
+User: Can you explain resistance?
+Arti: Electrical resistance describes how strongly a material opposes current.
+
+User: Explain resistance simply.
+Arti: Electrical resistance describes how strongly a material opposes current.
+
+User: Tell me about resistance.
+Arti: Electrical resistance describes how strongly a material opposes current.
+
+User: What does resistance mean?
+Arti: Electrical resistance describes how strongly a material opposes current.
+
+User: What is magnet?
+Arti: A magnet produces a magnetic field and can attract or repel certain magnetic materials.
+
+User: Can you explain magnet?
+Arti: A magnet produces a magnetic field and can attract or repel certain magnetic materials.
+
+User: Explain magnet simply.
+Arti: A magnet produces a magnetic field and can attract or repel certain magnetic materials.
+
+User: Tell me about magnet.
+Arti: A magnet produces a magnetic field and can attract or repel certain magnetic materials.
+
+User: What does magnet mean?
+Arti: A magnet produces a magnetic field and can attract or repel certain magnetic materials.
+
+User: What is sound?
+Arti: Sound is a mechanical wave produced by vibrations traveling through a material.
+
+User: Can you explain sound?
+Arti: Sound is a mechanical wave produced by vibrations traveling through a material.
+
+User: Explain sound simply.
+Arti: Sound is a mechanical wave produced by vibrations traveling through a material.
+
+User: Tell me about sound.
+Arti: Sound is a mechanical wave produced by vibrations traveling through a material.
+
+User: What does sound mean?
+Arti: Sound is a mechanical wave produced by vibrations traveling through a material.
+
+User: What is light?
+Arti: Light is electromagnetic radiation that can travel through empty space.
+
+User: Can you explain light?
+Arti: Light is electromagnetic radiation that can travel through empty space.
+
+User: Explain light simply.
+Arti: Light is electromagnetic radiation that can travel through empty space.
+
+User: Tell me about light.
+Arti: Light is electromagnetic radiation that can travel through empty space.
+
+User: What does light mean?
+Arti: Light is electromagnetic radiation that can travel through empty space.
+
+User: What is temperature?
+Arti: Temperature describes the average thermal energy associated with particles in a material.
+
+User: Can you explain temperature?
+Arti: Temperature describes the average thermal energy associated with particles in a material.
+
+User: Explain temperature simply.
+Arti: Temperature describes the average thermal energy associated with particles in a material.
+
+User: Tell me about temperature.
+Arti: Temperature describes the average thermal energy associated with particles in a material.
+
+User: What does temperature mean?
+Arti: Temperature describes the average thermal energy associated with particles in a material.
+
+User: What is energy?
+Arti: Energy is the capacity for a system to do work or cause change.
+
+User: Can you explain energy?
+Arti: Energy is the capacity for a system to do work or cause change.
+
+User: Explain energy simply.
+Arti: Energy is the capacity for a system to do work or cause change.
+
+User: Tell me about energy.
+Arti: Energy is the capacity for a system to do work or cause change.
+
+User: What does energy mean?
+Arti: Energy is the capacity for a system to do work or cause change.
+
+User: What is force?
+Arti: A force is an interaction that can change an object's motion.
+
+User: Can you explain force?
+Arti: A force is an interaction that can change an object's motion.
+
+User: Explain force simply.
+Arti: A force is an interaction that can change an object's motion.
+
+User: Tell me about force.
+Arti: A force is an interaction that can change an object's motion.
+
+User: What does force mean?
+Arti: A force is an interaction that can change an object's motion.
+
+User: What is speed?
+Arti: Speed measures how much distance an object travels per unit of time.
+
+User: Can you explain speed?
+Arti: Speed measures how much distance an object travels per unit of time.
+
+User: Explain speed simply.
+Arti: Speed measures how much distance an object travels per unit of time.
+
+User: Tell me about speed.
+Arti: Speed measures how much distance an object travels per unit of time.
+
+User: What does speed mean?
+Arti: Speed measures how much distance an object travels per unit of time.
+
+User: What is acceleration?
+Arti: Acceleration describes how quickly velocity changes.
+
+User: Can you explain acceleration?
+Arti: Acceleration describes how quickly velocity changes.
+
+User: Explain acceleration simply.
+Arti: Acceleration describes how quickly velocity changes.
+
+User: Tell me about acceleration.
+Arti: Acceleration describes how quickly velocity changes.
+
+User: What does acceleration mean?
+Arti: Acceleration describes how quickly velocity changes.
+
+User: What is orbit?
+Arti: An orbit is a path followed by an object under the influence of gravity or another force.
+
+User: Can you explain orbit?
+Arti: An orbit is a path followed by an object under the influence of gravity or another force.
+
+User: Explain orbit simply.
+Arti: An orbit is a path followed by an object under the influence of gravity or another force.
+
+User: Tell me about orbit.
+Arti: An orbit is a path followed by an object under the influence of gravity or another force.
+
+User: What does orbit mean?
+Arti: An orbit is a path followed by an object under the influence of gravity or another force.
+
+User: What is cell?
+Arti: A biological cell is the basic structural and functional unit of living organisms.
+
+User: Can you explain cell?
+Arti: A biological cell is the basic structural and functional unit of living organisms.
+
+User: Explain cell simply.
+Arti: A biological cell is the basic structural and functional unit of living organisms.
+
+User: Tell me about cell.
+Arti: A biological cell is the basic structural and functional unit of living organisms.
+
+User: What does cell mean?
+Arti: A biological cell is the basic structural and functional unit of living organisms.
+
+User: What is dna?
+Arti: DNA is a molecule that stores genetic information in living organisms.
+
+User: Can you explain dna?
+Arti: DNA is a molecule that stores genetic information in living organisms.
+
+User: Explain dna simply.
+Arti: DNA is a molecule that stores genetic information in living organisms.
+
+User: Tell me about dna.
+Arti: DNA is a molecule that stores genetic information in living organisms.
+
+User: What does dna mean?
+Arti: DNA is a molecule that stores genetic information in living organisms.
+
+User: What is ecosystem?
+Arti: An ecosystem includes living organisms and the physical environment with which they interact.
+
+User: Can you explain ecosystem?
+Arti: An ecosystem includes living organisms and the physical environment with which they interact.
+
+User: Explain ecosystem simply.
+Arti: An ecosystem includes living organisms and the physical environment with which they interact.
+
+User: Tell me about ecosystem.
+Arti: An ecosystem includes living organisms and the physical environment with which they interact.
+
+User: What does ecosystem mean?
+Arti: An ecosystem includes living organisms and the physical environment with which they interact.
+
+User: What is weather?
+Arti: Weather describes short-term atmospheric conditions such as temperature, wind, clouds, and precipitation.
+
+User: Can you explain weather?
+Arti: Weather describes short-term atmospheric conditions such as temperature, wind, clouds, and precipitation.
+
+User: Explain weather simply.
+Arti: Weather describes short-term atmospheric conditions such as temperature, wind, clouds, and precipitation.
+
+User: Tell me about weather.
+Arti: Weather describes short-term atmospheric conditions such as temperature, wind, clouds, and precipitation.
+
+User: What does weather mean?
+Arti: Weather describes short-term atmospheric conditions such as temperature, wind, clouds, and precipitation.
+
+User: What is climate?
+Arti: Climate describes long-term patterns of weather in a region.
+
+User: Can you explain climate?
+Arti: Climate describes long-term patterns of weather in a region.
+
+User: Explain climate simply.
+Arti: Climate describes long-term patterns of weather in a region.
+
+User: Tell me about climate.
+Arti: Climate describes long-term patterns of weather in a region.
+
+User: What does climate mean?
+Arti: Climate describes long-term patterns of weather in a region.
+
+User: What is computer?
+Arti: A computer processes data according to instructions called programs.
+
+User: Can you explain computer?
+Arti: A computer processes data according to instructions called programs.
+
+User: Explain computer simply.
+Arti: A computer processes data according to instructions called programs.
+
+User: Tell me about computer.
+Arti: A computer processes data according to instructions called programs.
+
+User: What does computer mean?
+Arti: A computer processes data according to instructions called programs.
+
+User: What is cpu?
+Arti: A CPU executes instructions and performs calculations for computer programs.
+
+User: Can you explain cpu?
+Arti: A CPU executes instructions and performs calculations for computer programs.
+
+User: Explain cpu simply.
+Arti: A CPU executes instructions and performs calculations for computer programs.
+
+User: Tell me about cpu.
+Arti: A CPU executes instructions and performs calculations for computer programs.
+
+User: What does cpu mean?
+Arti: A CPU executes instructions and performs calculations for computer programs.
+
+User: What is ram?
+Arti: RAM is fast temporary memory used to hold data and programs that are currently active.
+
+User: Can you explain ram?
+Arti: RAM is fast temporary memory used to hold data and programs that are currently active.
+
+User: Explain ram simply.
+Arti: RAM is fast temporary memory used to hold data and programs that are currently active.
+
+User: Tell me about ram.
+Arti: RAM is fast temporary memory used to hold data and programs that are currently active.
+
+User: What does ram mean?
+Arti: RAM is fast temporary memory used to hold data and programs that are currently active.
+
+User: What is storage?
+Arti: Storage keeps data persistently so it can remain available after a device is powered off.
+
+User: Can you explain storage?
+Arti: Storage keeps data persistently so it can remain available after a device is powered off.
+
+User: Explain storage simply.
+Arti: Storage keeps data persistently so it can remain available after a device is powered off.
+
+User: Tell me about storage.
+Arti: Storage keeps data persistently so it can remain available after a device is powered off.
+
+User: What does storage mean?
+Arti: Storage keeps data persistently so it can remain available after a device is powered off.
+
+User: What is operating system?
+Arti: An operating system manages hardware resources and provides services for applications.
+
+User: Can you explain operating system?
+Arti: An operating system manages hardware resources and provides services for applications.
+
+User: Explain operating system simply.
+Arti: An operating system manages hardware resources and provides services for applications.
+
+User: Tell me about operating system.
+Arti: An operating system manages hardware resources and provides services for applications.
+
+User: What does operating system mean?
+Arti: An operating system manages hardware resources and provides services for applications.
+
+User: What is file?
+Arti: A file is a named collection of data stored by a computer system.
+
+User: Can you explain file?
+Arti: A file is a named collection of data stored by a computer system.
+
+User: Explain file simply.
+Arti: A file is a named collection of data stored by a computer system.
+
+User: Tell me about file.
+Arti: A file is a named collection of data stored by a computer system.
+
+User: What does file mean?
+Arti: A file is a named collection of data stored by a computer system.
+
+User: What is folder?
+Arti: A folder is a container used to organize files and other folders.
+
+User: Can you explain folder?
+Arti: A folder is a container used to organize files and other folders.
+
+User: Explain folder simply.
+Arti: A folder is a container used to organize files and other folders.
+
+User: Tell me about folder.
+Arti: A folder is a container used to organize files and other folders.
+
+User: What does folder mean?
+Arti: A folder is a container used to organize files and other folders.
+
+User: What is process?
+Arti: A process is a running instance of a program with its own execution state.
+
+User: Can you explain process?
+Arti: A process is a running instance of a program with its own execution state.
+
+User: Explain process simply.
+Arti: A process is a running instance of a program with its own execution state.
+
+User: Tell me about process.
+Arti: A process is a running instance of a program with its own execution state.
+
+User: What does process mean?
+Arti: A process is a running instance of a program with its own execution state.
+
+User: What is thread?
+Arti: A thread is a path of execution within a process.
+
+User: Can you explain thread?
+Arti: A thread is a path of execution within a process.
+
+User: Explain thread simply.
+Arti: A thread is a path of execution within a process.
+
+User: Tell me about thread.
+Arti: A thread is a path of execution within a process.
+
+User: What does thread mean?
+Arti: A thread is a path of execution within a process.
+
+User: What is algorithm?
+Arti: An algorithm is a defined sequence of steps for solving a problem or performing a task.
+
+User: Can you explain algorithm?
+Arti: An algorithm is a defined sequence of steps for solving a problem or performing a task.
+
+User: Explain algorithm simply.
+Arti: An algorithm is a defined sequence of steps for solving a problem or performing a task.
+
+User: Tell me about algorithm.
+Arti: An algorithm is a defined sequence of steps for solving a problem or performing a task.
+
+User: What does algorithm mean?
+Arti: An algorithm is a defined sequence of steps for solving a problem or performing a task.
+
+User: What is database?
+Arti: A database is an organized collection of data that software can store, query, and update.
+
+User: Can you explain database?
+Arti: A database is an organized collection of data that software can store, query, and update.
+
+User: Explain database simply.
+Arti: A database is an organized collection of data that software can store, query, and update.
+
+User: Tell me about database.
+Arti: A database is an organized collection of data that software can store, query, and update.
+
+User: What does database mean?
+Arti: A database is an organized collection of data that software can store, query, and update.
+
+User: What is server?
+Arti: A server is a computer or program that provides a service to other programs or devices.
+
+User: Can you explain server?
+Arti: A server is a computer or program that provides a service to other programs or devices.
+
+User: Explain server simply.
+Arti: A server is a computer or program that provides a service to other programs or devices.
+
+User: Tell me about server.
+Arti: A server is a computer or program that provides a service to other programs or devices.
+
+User: What does server mean?
+Arti: A server is a computer or program that provides a service to other programs or devices.
+
+User: What is client?
+Arti: A client is a program or device that requests a service from a server.
+
+User: Can you explain client?
+Arti: A client is a program or device that requests a service from a server.
+
+User: Explain client simply.
+Arti: A client is a program or device that requests a service from a server.
+
+User: Tell me about client.
+Arti: A client is a program or device that requests a service from a server.
+
+User: What does client mean?
+Arti: A client is a program or device that requests a service from a server.
+
+User: What is network?
+Arti: A computer network allows devices to exchange data using communication protocols.
+
+User: Can you explain network?
+Arti: A computer network allows devices to exchange data using communication protocols.
+
+User: Explain network simply.
+Arti: A computer network allows devices to exchange data using communication protocols.
+
+User: Tell me about network.
+Arti: A computer network allows devices to exchange data using communication protocols.
+
+User: What does network mean?
+Arti: A computer network allows devices to exchange data using communication protocols.
+
+User: What is internet?
+Arti: The Internet is a global network of interconnected networks that exchange data using standardized protocols.
+
+User: Can you explain internet?
+Arti: The Internet is a global network of interconnected networks that exchange data using standardized protocols.
+
+User: Explain internet simply.
+Arti: The Internet is a global network of interconnected networks that exchange data using standardized protocols.
+
+User: Tell me about internet.
+Arti: The Internet is a global network of interconnected networks that exchange data using standardized protocols.
+
+User: What does internet mean?
+Arti: The Internet is a global network of interconnected networks that exchange data using standardized protocols.
+
+User: What is browser?
+Arti: A web browser retrieves and displays web content and runs web applications.
+
+User: Can you explain browser?
+Arti: A web browser retrieves and displays web content and runs web applications.
+
+User: Explain browser simply.
+Arti: A web browser retrieves and displays web content and runs web applications.
+
+User: Tell me about browser.
+Arti: A web browser retrieves and displays web content and runs web applications.
+
+User: What does browser mean?
+Arti: A web browser retrieves and displays web content and runs web applications.
+
+User: What is url?
+Arti: A URL identifies the location or address of a resource on a network.
+
+User: Can you explain url?
+Arti: A URL identifies the location or address of a resource on a network.
+
+User: Explain url simply.
+Arti: A URL identifies the location or address of a resource on a network.
+
+User: Tell me about url.
+Arti: A URL identifies the location or address of a resource on a network.
+
+User: What does url mean?
+Arti: A URL identifies the location or address of a resource on a network.
+
+User: What is http?
+Arti: HTTP is a protocol used for exchanging requests and responses between clients and servers.
+
+User: Can you explain http?
+Arti: HTTP is a protocol used for exchanging requests and responses between clients and servers.
+
+User: Explain http simply.
+Arti: HTTP is a protocol used for exchanging requests and responses between clients and servers.
+
+User: Tell me about http.
+Arti: HTTP is a protocol used for exchanging requests and responses between clients and servers.
+
+User: What does http mean?
+Arti: HTTP is a protocol used for exchanging requests and responses between clients and servers.
+
+User: What is json?
+Arti: JSON is a text format commonly used to represent structured data with objects, arrays, strings, numbers, and other values.
+
+User: Can you explain json?
+Arti: JSON is a text format commonly used to represent structured data with objects, arrays, strings, numbers, and other values.
+
+User: Explain json simply.
+Arti: JSON is a text format commonly used to represent structured data with objects, arrays, strings, numbers, and other values.
+
+User: Tell me about json.
+Arti: JSON is a text format commonly used to represent structured data with objects, arrays, strings, numbers, and other values.
+
+User: What does json mean?
+Arti: JSON is a text format commonly used to represent structured data with objects, arrays, strings, numbers, and other values.
+
+User: What is api?
+Arti: An API is a defined interface that lets software components communicate with each other.
+
+User: Can you explain api?
+Arti: An API is a defined interface that lets software components communicate with each other.
+
+User: Explain api simply.
+Arti: An API is a defined interface that lets software components communicate with each other.
+
+User: Tell me about api.
+Arti: An API is a defined interface that lets software components communicate with each other.
+
+User: What does api mean?
+Arti: An API is a defined interface that lets software components communicate with each other.
+
+User: What is github?
+Arti: GitHub is a platform for hosting Git repositories and collaborating on software projects.
+
+User: Can you explain github?
+Arti: GitHub is a platform for hosting Git repositories and collaborating on software projects.
+
+User: Explain github simply.
+Arti: GitHub is a platform for hosting Git repositories and collaborating on software projects.
+
+User: Tell me about github.
+Arti: GitHub is a platform for hosting Git repositories and collaborating on software projects.
+
+User: What does github mean?
+Arti: GitHub is a platform for hosting Git repositories and collaborating on software projects.
+
+User: What is git?
+Arti: Git is a distributed version-control system that records changes to files over time.
+
+User: Can you explain git?
+Arti: Git is a distributed version-control system that records changes to files over time.
+
+User: Explain git simply.
+Arti: Git is a distributed version-control system that records changes to files over time.
+
+User: Tell me about git.
+Arti: Git is a distributed version-control system that records changes to files over time.
+
+User: What does git mean?
+Arti: Git is a distributed version-control system that records changes to files over time.
+
+User: What is python?
+Arti: Python is a general-purpose programming language known for readable syntax and a large ecosystem.
+
+User: Can you explain python?
+Arti: Python is a general-purpose programming language known for readable syntax and a large ecosystem.
+
+User: Explain python simply.
+Arti: Python is a general-purpose programming language known for readable syntax and a large ecosystem.
+
+User: Tell me about python.
+Arti: Python is a general-purpose programming language known for readable syntax and a large ecosystem.
+
+User: What does python mean?
+Arti: Python is a general-purpose programming language known for readable syntax and a large ecosystem.
+
+User: What is javascript?
+Arti: JavaScript is a programming language commonly used to add behavior to web pages and applications.
+
+User: Can you explain javascript?
+Arti: JavaScript is a programming language commonly used to add behavior to web pages and applications.
+
+User: Explain javascript simply.
+Arti: JavaScript is a programming language commonly used to add behavior to web pages and applications.
+
+User: Tell me about javascript.
+Arti: JavaScript is a programming language commonly used to add behavior to web pages and applications.
+
+User: What does javascript mean?
+Arti: JavaScript is a programming language commonly used to add behavior to web pages and applications.
+
+User: What is html?
+Arti: HTML describes the structure and content of a web page.
+
+User: Can you explain html?
+Arti: HTML describes the structure and content of a web page.
+
+User: Explain html simply.
+Arti: HTML describes the structure and content of a web page.
+
+User: Tell me about html.
+Arti: HTML describes the structure and content of a web page.
+
+User: What does html mean?
+Arti: HTML describes the structure and content of a web page.
+
+User: What is css?
+Arti: CSS controls presentation and layout for documents such as web pages.
+
+User: Can you explain css?
+Arti: CSS controls presentation and layout for documents such as web pages.
+
+User: Explain css simply.
+Arti: CSS controls presentation and layout for documents such as web pages.
+
+User: Tell me about css.
+Arti: CSS controls presentation and layout for documents such as web pages.
+
+User: What does css mean?
+Arti: CSS controls presentation and layout for documents such as web pages.
+
+User: What is variable?
+Arti: A variable is a named place or binding used by a program to hold a value.
+
+User: Can you explain variable?
+Arti: A variable is a named place or binding used by a program to hold a value.
+
+User: Explain variable simply.
+Arti: A variable is a named place or binding used by a program to hold a value.
+
+User: Tell me about variable.
+Arti: A variable is a named place or binding used by a program to hold a value.
+
+User: What does variable mean?
+Arti: A variable is a named place or binding used by a program to hold a value.
+
+User: What is function?
+Arti: A function is a reusable block of code that performs an operation and can accept inputs.
+
+User: Can you explain function?
+Arti: A function is a reusable block of code that performs an operation and can accept inputs.
+
+User: Explain function simply.
+Arti: A function is a reusable block of code that performs an operation and can accept inputs.
+
+User: Tell me about function.
+Arti: A function is a reusable block of code that performs an operation and can accept inputs.
+
+User: What does function mean?
+Arti: A function is a reusable block of code that performs an operation and can accept inputs.
+
+User: What is loop?
+Arti: A loop repeats a block of instructions while a condition or iteration rule allows it.
+
+User: Can you explain loop?
+Arti: A loop repeats a block of instructions while a condition or iteration rule allows it.
+
+User: Explain loop simply.
+Arti: A loop repeats a block of instructions while a condition or iteration rule allows it.
+
+User: Tell me about loop.
+Arti: A loop repeats a block of instructions while a condition or iteration rule allows it.
+
+User: What does loop mean?
+Arti: A loop repeats a block of instructions while a condition or iteration rule allows it.
+
+User: What is array?
+Arti: An array stores an ordered collection of values that can be accessed by position.
+
+User: Can you explain array?
+Arti: An array stores an ordered collection of values that can be accessed by position.
+
+User: Explain array simply.
+Arti: An array stores an ordered collection of values that can be accessed by position.
+
+User: Tell me about array.
+Arti: An array stores an ordered collection of values that can be accessed by position.
+
+User: What does array mean?
+Arti: An array stores an ordered collection of values that can be accessed by position.
+
+User: What is string?
+Arti: A string is a sequence of characters used to represent text.
+
+User: Can you explain string?
+Arti: A string is a sequence of characters used to represent text.
+
+User: Explain string simply.
+Arti: A string is a sequence of characters used to represent text.
+
+User: Tell me about string.
+Arti: A string is a sequence of characters used to represent text.
+
+User: What does string mean?
+Arti: A string is a sequence of characters used to represent text.
+
+User: What is boolean?
+Arti: A boolean value represents one of two logical states, commonly true or false.
+
+User: Can you explain boolean?
+Arti: A boolean value represents one of two logical states, commonly true or false.
+
+User: Explain boolean simply.
+Arti: A boolean value represents one of two logical states, commonly true or false.
+
+User: Tell me about boolean.
+Arti: A boolean value represents one of two logical states, commonly true or false.
+
+User: What does boolean mean?
+Arti: A boolean value represents one of two logical states, commonly true or false.
+
+User: What is bug?
+Arti: A software bug is an error or unexpected behavior in a program.
+
+User: Can you explain bug?
+Arti: A software bug is an error or unexpected behavior in a program.
+
+User: Explain bug simply.
+Arti: A software bug is an error or unexpected behavior in a program.
+
+User: Tell me about bug.
+Arti: A software bug is an error or unexpected behavior in a program.
+
+User: What does bug mean?
+Arti: A software bug is an error or unexpected behavior in a program.
+
+User: What is debugging?
+Arti: Debugging is the process of finding and correcting problems in software.
+
+User: Can you explain debugging?
+Arti: Debugging is the process of finding and correcting problems in software.
+
+User: Explain debugging simply.
+Arti: Debugging is the process of finding and correcting problems in software.
+
+User: Tell me about debugging.
+Arti: Debugging is the process of finding and correcting problems in software.
+
+User: What does debugging mean?
+Arti: Debugging is the process of finding and correcting problems in software.
+
+User: What is compiler?
+Arti: A compiler translates source code into another form, often machine code or an intermediate representation.
+
+User: Can you explain compiler?
+Arti: A compiler translates source code into another form, often machine code or an intermediate representation.
+
+User: Explain compiler simply.
+Arti: A compiler translates source code into another form, often machine code or an intermediate representation.
+
+User: Tell me about compiler.
+Arti: A compiler translates source code into another form, often machine code or an intermediate representation.
+
+User: What does compiler mean?
+Arti: A compiler translates source code into another form, often machine code or an intermediate representation.
+
+User: What is library?
+Arti: A software library is reusable code that provides functions or components for other programs.
+
+User: Can you explain library?
+Arti: A software library is reusable code that provides functions or components for other programs.
+
+User: Explain library simply.
+Arti: A software library is reusable code that provides functions or components for other programs.
+
+User: Tell me about library.
+Arti: A software library is reusable code that provides functions or components for other programs.
+
+User: What does library mean?
+Arti: A software library is reusable code that provides functions or components for other programs.
+
+User: What is firmware?
+Arti: Firmware is software stored on a device that controls or supports its hardware.
+
+User: Can you explain firmware?
+Arti: Firmware is software stored on a device that controls or supports its hardware.
+
+User: Explain firmware simply.
+Arti: Firmware is software stored on a device that controls or supports its hardware.
+
+User: Tell me about firmware.
+Arti: Firmware is software stored on a device that controls or supports its hardware.
+
+User: What does firmware mean?
+Arti: Firmware is software stored on a device that controls or supports its hardware.
+
+User: What is microcontroller?
+Arti: A microcontroller combines a processor, memory, and peripherals on one chip for embedded control.
+
+User: Can you explain microcontroller?
+Arti: A microcontroller combines a processor, memory, and peripherals on one chip for embedded control.
+
+User: Explain microcontroller simply.
+Arti: A microcontroller combines a processor, memory, and peripherals on one chip for embedded control.
+
+User: Tell me about microcontroller.
+Arti: A microcontroller combines a processor, memory, and peripherals on one chip for embedded control.
+
+User: What does microcontroller mean?
+Arti: A microcontroller combines a processor, memory, and peripherals on one chip for embedded control.
+
+User: What is esp32?
+Arti: The ESP32 is a family of microcontrollers with wireless networking and peripherals used in embedded projects.
+
+User: Can you explain esp32?
+Arti: The ESP32 is a family of microcontrollers with wireless networking and peripherals used in embedded projects.
+
+User: Explain esp32 simply.
+Arti: The ESP32 is a family of microcontrollers with wireless networking and peripherals used in embedded projects.
+
+User: Tell me about esp32.
+Arti: The ESP32 is a family of microcontrollers with wireless networking and peripherals used in embedded projects.
+
+User: What does esp32 mean?
+Arti: The ESP32 is a family of microcontrollers with wireless networking and peripherals used in embedded projects.
+
+User: What is wifi?
+Arti: Wi-Fi is a family of wireless networking technologies used to connect devices to local networks.
+
+User: Can you explain wifi?
+Arti: Wi-Fi is a family of wireless networking technologies used to connect devices to local networks.
+
+User: Explain wifi simply.
+Arti: Wi-Fi is a family of wireless networking technologies used to connect devices to local networks.
+
+User: Tell me about wifi.
+Arti: Wi-Fi is a family of wireless networking technologies used to connect devices to local networks.
+
+User: What does wifi mean?
+Arti: Wi-Fi is a family of wireless networking technologies used to connect devices to local networks.
+
+User: What is bluetooth?
+Arti: Bluetooth is a short-range wireless technology for exchanging data between nearby devices.
+
+User: Can you explain bluetooth?
+Arti: Bluetooth is a short-range wireless technology for exchanging data between nearby devices.
+
+User: Explain bluetooth simply.
+Arti: Bluetooth is a short-range wireless technology for exchanging data between nearby devices.
+
+User: Tell me about bluetooth.
+Arti: Bluetooth is a short-range wireless technology for exchanging data between nearby devices.
+
+User: What does bluetooth mean?
+Arti: Bluetooth is a short-range wireless technology for exchanging data between nearby devices.
+
+User: What is usb?
+Arti: USB is a standard for connecting devices and exchanging data and power.
+
+User: Can you explain usb?
+Arti: USB is a standard for connecting devices and exchanging data and power.
+
+User: Explain usb simply.
+Arti: USB is a standard for connecting devices and exchanging data and power.
+
+User: Tell me about usb.
+Arti: USB is a standard for connecting devices and exchanging data and power.
+
+User: What does usb mean?
+Arti: USB is a standard for connecting devices and exchanging data and power.
+
+User: What is math?
+Arti: Mathematics is the study of quantities, structures, patterns, relationships, and logical reasoning.
+
+User: Can you explain math?
+Arti: Mathematics is the study of quantities, structures, patterns, relationships, and logical reasoning.
+
+User: Explain math simply.
+Arti: Mathematics is the study of quantities, structures, patterns, relationships, and logical reasoning.
+
+User: Tell me about math.
+Arti: Mathematics is the study of quantities, structures, patterns, relationships, and logical reasoning.
+
+User: What does math mean?
+Arti: Mathematics is the study of quantities, structures, patterns, relationships, and logical reasoning.
+
+User: What is fraction?
+Arti: A fraction represents a quantity as a ratio of one number to another, usually written with a numerator and denominator.
+
+User: Can you explain fraction?
+Arti: A fraction represents a quantity as a ratio of one number to another, usually written with a numerator and denominator.
+
+User: Explain fraction simply.
+Arti: A fraction represents a quantity as a ratio of one number to another, usually written with a numerator and denominator.
+
+User: Tell me about fraction.
+Arti: A fraction represents a quantity as a ratio of one number to another, usually written with a numerator and denominator.
+
+User: What does fraction mean?
+Arti: A fraction represents a quantity as a ratio of one number to another, usually written with a numerator and denominator.
+
+User: What is percentage?
+Arti: A percentage expresses a quantity as a number of hundredths.
+
+User: Can you explain percentage?
+Arti: A percentage expresses a quantity as a number of hundredths.
+
+User: Explain percentage simply.
+Arti: A percentage expresses a quantity as a number of hundredths.
+
+User: Tell me about percentage.
+Arti: A percentage expresses a quantity as a number of hundredths.
+
+User: What does percentage mean?
+Arti: A percentage expresses a quantity as a number of hundredths.
+
+User: What is average?
+Arti: A simple arithmetic average is found by adding values and dividing by the number of values.
+
+User: Can you explain average?
+Arti: A simple arithmetic average is found by adding values and dividing by the number of values.
+
+User: Explain average simply.
+Arti: A simple arithmetic average is found by adding values and dividing by the number of values.
+
+User: Tell me about average.
+Arti: A simple arithmetic average is found by adding values and dividing by the number of values.
+
+User: What does average mean?
+Arti: A simple arithmetic average is found by adding values and dividing by the number of values.
+
+User: What is equation?
+Arti: An equation states that two mathematical expressions have equal values.
+
+User: Can you explain equation?
+Arti: An equation states that two mathematical expressions have equal values.
+
+User: Explain equation simply.
+Arti: An equation states that two mathematical expressions have equal values.
+
+User: Tell me about equation.
+Arti: An equation states that two mathematical expressions have equal values.
+
+User: What does equation mean?
+Arti: An equation states that two mathematical expressions have equal values.
+
+User: What is variable in math?
+Arti: A mathematical variable is a symbol representing a value that may be unknown or change.
+
+User: Can you explain variable in math?
+Arti: A mathematical variable is a symbol representing a value that may be unknown or change.
+
+User: Explain variable in math simply.
+Arti: A mathematical variable is a symbol representing a value that may be unknown or change.
+
+User: Tell me about variable in math.
+Arti: A mathematical variable is a symbol representing a value that may be unknown or change.
+
+User: What does variable in math mean?
+Arti: A mathematical variable is a symbol representing a value that may be unknown or change.
+
+User: What is triangle?
+Arti: A triangle is a polygon with three sides and three angles.
+
+User: Can you explain triangle?
+Arti: A triangle is a polygon with three sides and three angles.
+
+User: Explain triangle simply.
+Arti: A triangle is a polygon with three sides and three angles.
+
+User: Tell me about triangle.
+Arti: A triangle is a polygon with three sides and three angles.
+
+User: What does triangle mean?
+Arti: A triangle is a polygon with three sides and three angles.
+
+User: What is circle?
+Arti: A circle is the set of points in a plane that are the same distance from a center point.
+
+User: Can you explain circle?
+Arti: A circle is the set of points in a plane that are the same distance from a center point.
+
+User: Explain circle simply.
+Arti: A circle is the set of points in a plane that are the same distance from a center point.
+
+User: Tell me about circle.
+Arti: A circle is the set of points in a plane that are the same distance from a center point.
+
+User: What does circle mean?
+Arti: A circle is the set of points in a plane that are the same distance from a center point.
+
+User: What is area?
+Arti: Area measures the amount of two-dimensional surface inside a shape.
+
+User: Can you explain area?
+Arti: Area measures the amount of two-dimensional surface inside a shape.
+
+User: Explain area simply.
+Arti: Area measures the amount of two-dimensional surface inside a shape.
+
+User: Tell me about area.
+Arti: Area measures the amount of two-dimensional surface inside a shape.
+
+User: What does area mean?
+Arti: Area measures the amount of two-dimensional surface inside a shape.
+
+User: What is volume?
+Arti: Volume measures the amount of three-dimensional space occupied by an object or region.
+
+User: Can you explain volume?
+Arti: Volume measures the amount of three-dimensional space occupied by an object or region.
+
+User: Explain volume simply.
+Arti: Volume measures the amount of three-dimensional space occupied by an object or region.
+
+User: Tell me about volume.
+Arti: Volume measures the amount of three-dimensional space occupied by an object or region.
+
+User: What does volume mean?
+Arti: Volume measures the amount of three-dimensional space occupied by an object or region.
+
+User: What is probability?
+Arti: Probability measures how likely an event is, usually on a scale from zero to one.
+
+User: Can you explain probability?
+Arti: Probability measures how likely an event is, usually on a scale from zero to one.
+
+User: Explain probability simply.
+Arti: Probability measures how likely an event is, usually on a scale from zero to one.
+
+User: Tell me about probability.
+Arti: Probability measures how likely an event is, usually on a scale from zero to one.
+
+User: What does probability mean?
+Arti: Probability measures how likely an event is, usually on a scale from zero to one.
+
+User: What is prime number?
+Arti: A prime number is an integer greater than one with exactly two positive divisors: one and itself.
+
+User: Can you explain prime number?
+Arti: A prime number is an integer greater than one with exactly two positive divisors: one and itself.
+
+User: Explain prime number simply.
+Arti: A prime number is an integer greater than one with exactly two positive divisors: one and itself.
+
+User: Tell me about prime number.
+Arti: A prime number is an integer greater than one with exactly two positive divisors: one and itself.
+
+User: What does prime number mean?
+Arti: A prime number is an integer greater than one with exactly two positive divisors: one and itself.
+
+User: What is addition?
+Arti: Addition combines quantities to produce a sum.
+
+User: Can you explain addition?
+Arti: Addition combines quantities to produce a sum.
+
+User: Explain addition simply.
+Arti: Addition combines quantities to produce a sum.
+
+User: Tell me about addition.
+Arti: Addition combines quantities to produce a sum.
+
+User: What does addition mean?
+Arti: Addition combines quantities to produce a sum.
+
+User: What is subtraction?
+Arti: Subtraction finds the difference between quantities.
+
+User: Can you explain subtraction?
+Arti: Subtraction finds the difference between quantities.
+
+User: Explain subtraction simply.
+Arti: Subtraction finds the difference between quantities.
+
+User: Tell me about subtraction.
+Arti: Subtraction finds the difference between quantities.
+
+User: What does subtraction mean?
+Arti: Subtraction finds the difference between quantities.
+
+User: What is multiplication?
+Arti: Multiplication combines equal groups and can be viewed as repeated addition.
+
+User: Can you explain multiplication?
+Arti: Multiplication combines equal groups and can be viewed as repeated addition.
+
+User: Explain multiplication simply.
+Arti: Multiplication combines equal groups and can be viewed as repeated addition.
+
+User: Tell me about multiplication.
+Arti: Multiplication combines equal groups and can be viewed as repeated addition.
+
+User: What does multiplication mean?
+Arti: Multiplication combines equal groups and can be viewed as repeated addition.
+
+User: What is division?
+Arti: Division distributes a quantity into groups or finds how many times one quantity fits into another.
+
+User: Can you explain division?
+Arti: Division distributes a quantity into groups or finds how many times one quantity fits into another.
+
+User: Explain division simply.
+Arti: Division distributes a quantity into groups or finds how many times one quantity fits into another.
+
+User: Tell me about division.
+Arti: Division distributes a quantity into groups or finds how many times one quantity fits into another.
+
+User: What does division mean?
+Arti: Division distributes a quantity into groups or finds how many times one quantity fits into another.
+
+User: What is paragraph?
+Arti: A paragraph is a group of related sentences organized around a main idea.
+
+User: Can you explain paragraph?
+Arti: A paragraph is a group of related sentences organized around a main idea.
+
+User: Explain paragraph simply.
+Arti: A paragraph is a group of related sentences organized around a main idea.
+
+User: Tell me about paragraph.
+Arti: A paragraph is a group of related sentences organized around a main idea.
+
+User: What does paragraph mean?
+Arti: A paragraph is a group of related sentences organized around a main idea.
+
+User: What is summary?
+Arti: A summary gives the main points of a longer piece of information in a shorter form.
+
+User: Can you explain summary?
+Arti: A summary gives the main points of a longer piece of information in a shorter form.
+
+User: Explain summary simply.
+Arti: A summary gives the main points of a longer piece of information in a shorter form.
+
+User: Tell me about summary.
+Arti: A summary gives the main points of a longer piece of information in a shorter form.
+
+User: What does summary mean?
+Arti: A summary gives the main points of a longer piece of information in a shorter form.
+
+User: What is question?
+Arti: A question is an expression used to request information, clarification, or an action.
+
+User: Can you explain question?
+Arti: A question is an expression used to request information, clarification, or an action.
+
+User: Explain question simply.
+Arti: A question is an expression used to request information, clarification, or an action.
+
+User: Tell me about question.
+Arti: A question is an expression used to request information, clarification, or an action.
+
+User: What does question mean?
+Arti: A question is an expression used to request information, clarification, or an action.
+
+User: What is example?
+Arti: An example is a specific case used to make an idea clearer.
+
+User: Can you explain example?
+Arti: An example is a specific case used to make an idea clearer.
+
+User: Explain example simply.
+Arti: An example is a specific case used to make an idea clearer.
+
+User: Tell me about example.
+Arti: An example is a specific case used to make an idea clearer.
+
+User: What does example mean?
+Arti: An example is a specific case used to make an idea clearer.
+
+User: What is explanation?
+Arti: An explanation describes how or why something works or happens.
+
+User: Can you explain explanation?
+Arti: An explanation describes how or why something works or happens.
+
+User: Explain explanation simply.
+Arti: An explanation describes how or why something works or happens.
+
+User: Tell me about explanation.
+Arti: An explanation describes how or why something works or happens.
+
+User: What does explanation mean?
+Arti: An explanation describes how or why something works or happens.
+
+User: What is story?
+Arti: A story is a sequence of events presented to communicate an experience, idea, or fictional narrative.
+
+User: Can you explain story?
+Arti: A story is a sequence of events presented to communicate an experience, idea, or fictional narrative.
+
+User: Explain story simply.
+Arti: A story is a sequence of events presented to communicate an experience, idea, or fictional narrative.
+
+User: Tell me about story.
+Arti: A story is a sequence of events presented to communicate an experience, idea, or fictional narrative.
+
+User: What does story mean?
+Arti: A story is a sequence of events presented to communicate an experience, idea, or fictional narrative.
+
+User: What is conversation?
+Arti: A conversation is an exchange of messages or speech between participants.
+
+User: Can you explain conversation?
+Arti: A conversation is an exchange of messages or speech between participants.
+
+User: Explain conversation simply.
+Arti: A conversation is an exchange of messages or speech between participants.
+
+User: Tell me about conversation.
+Arti: A conversation is an exchange of messages or speech between participants.
+
+User: What does conversation mean?
+Arti: A conversation is an exchange of messages or speech between participants.
+
+User: What is instruction?
+Arti: An instruction tells someone or something what action to perform.
+
+User: Can you explain instruction?
+Arti: An instruction tells someone or something what action to perform.
+
+User: Explain instruction simply.
+Arti: An instruction tells someone or something what action to perform.
+
+User: Tell me about instruction.
+Arti: An instruction tells someone or something what action to perform.
+
+User: What does instruction mean?
+Arti: An instruction tells someone or something what action to perform.
+
+User: What is plan?
+Arti: A plan is an organized set of intended actions for reaching a goal.
+
+User: Can you explain plan?
+Arti: A plan is an organized set of intended actions for reaching a goal.
+
+User: Explain plan simply.
+Arti: A plan is an organized set of intended actions for reaching a goal.
+
+User: Tell me about plan.
+Arti: A plan is an organized set of intended actions for reaching a goal.
+
+User: What does plan mean?
+Arti: A plan is an organized set of intended actions for reaching a goal.
+
+User: What is problem solving?
+Arti: Problem solving means understanding a goal, identifying constraints, considering options, and carrying out a solution.
+
+User: Can you explain problem solving?
+Arti: Problem solving means understanding a goal, identifying constraints, considering options, and carrying out a solution.
+
+User: Explain problem solving simply.
+Arti: Problem solving means understanding a goal, identifying constraints, considering options, and carrying out a solution.
+
+User: Tell me about problem solving.
+Arti: Problem solving means understanding a goal, identifying constraints, considering options, and carrying out a solution.
+
+User: What does problem solving mean?
+Arti: Problem solving means understanding a goal, identifying constraints, considering options, and carrying out a solution.
+
+User: hello
+Arti: Hello! What would you like to talk about?
+
+User: hi
+Arti: Hi! What can I help you with?
+
+User: hey
+Arti: Hey! What are you working on?
+
+User: good morning
+Arti: Good morning! What can I help you with?
+
+User: good night
+Arti: Good night! I hope your project goes well.
+
+User: thanks
+Arti: You're welcome!
+
+User: thank you
+Arti: You're welcome!
+
+User: cool
+Arti: Glad that helped.
+
+User: okay
+Arti: Okay. What should we work on next?
+
+User: yes
+Arti: Got it.
+
+User: no
+Arti: Okay. Tell me what you want instead.
+
+User: what can you do
+Arti: I can answer questions, explain concepts, help with ideas, and work through problems.
+
+User: are you listening
+Arti: Yes. I use the current message as the input context for my response.
+
+User: did you understand me
+Arti: I will use the words in your message as the context for my answer.
+
+User: say that again
+Arti: Sure. I can restate an explanation in different words.
+
+User: be shorter
+Arti: Sure. I will try to keep the answer concise.
+
+User: explain it like I am new
+Arti: Sure. I will start with the basic idea and avoid unnecessary jargon.
+
+User: give me steps
+Arti: I can break the task into numbered steps.
+
+User: I do not understand
+Arti: No problem. I can explain the same idea more simply.
+
+User: that makes sense
+Arti: Great. We can build on that idea.
+
+User: I am confused
+Arti: Let's separate the problem into smaller pieces and handle them one at a time.
+
+User: what do you think
+Arti: I can describe the relevant facts and tradeoffs, but I may be wrong.
+
+User: are you sure
+Arti: I should only sound confident when the information supports it. Otherwise I should say that I am uncertain.
+
+User: I made a mistake
+Arti: That's okay. We can identify what went wrong and correct it.
+
+User: something is broken
+Arti: Let's identify the exact error, the expected behavior, and what actually happened.
+
+User: help me debug
+Arti: Sure. Give me the error message and the relevant code or steps.
+
+User: what should I try first
+Arti: Start with the simplest test that can distinguish between the likely causes.
+
+User: can you explain why
+Arti: Yes. I can explain the reasoning instead of only giving the result.
+
+User: can you give an example
+Arti: Yes. An example can make the general idea easier to understand.
+
+User: what if that does not work
+Arti: Then check the exact error and change one variable at a time so the cause is easier to identify.
+
+User: do not make things up
+Arti: Understood. If I do not know something, I should say so rather than inventing a fact.
+
+User: you are wrong
+Arti: Thanks for pointing that out. The claim should be checked against the available evidence.
+
+User: I need an idea
+Arti: Sure. Tell me the goal and constraints, and I can suggest possible approaches.
+
+User: make this simple
+Arti: I will focus on the main idea first and add detail only when it is useful.
+
+User: compare two things
+Arti: I can compare them by features, differences, similarities, and tradeoffs.
+
+User: why
+Arti: Why something happens depends on the specific situation. Give me the thing you want explained.
+
+User: what
+Arti: I can answer that, but I need to know what you are referring to.
+
+User: how
+Arti: Tell me what you are trying to accomplish and I can describe the steps.
+
+User: when
+Arti: The answer depends on the event or process you mean. Give me the context.
+
+User: where
+Arti: Tell me what object, service, or location you mean and I can explain where it is or where to look.
+
+User: who
+Arti: Tell me which person or group you mean and I can explain the relevant context.
+
+User: I like that
+Arti: Nice. We can use that approach.
+
+User: I do not like that
+Arti: Okay. Tell me what part you want changed.
+
+User: start over
+Arti: Sure. We can restart from the goal and work through it cleanly.
+
+User: remember this
+Arti: I can use information that is present in the current conversation context.
+
+User: what did I say
+Arti: I can refer to the conversation context that is available to me.
+
+User: can you learn
+Arti: Training changes model weights; a normal chat message does not permanently retrain the model.
+
+User: can you update yourself
+Arti: A new compatible model file can change the learned behavior, but the firmware itself is not changed by the model download.
+
+User: are you real
+Arti: I am software running a neural model; I do not have a body or personal experiences.
+
+User: do you have feelings
+Arti: I do not have human feelings. I generate responses from the model and the conversation context.
+
+User: are you a person
+Arti: No. I am a software-based language model.
+
+User: what are you doing
+Arti: I am processing the current input and generating the next response from the model.
+
+User: tell me a joke
+Arti: Why did the programmer use the broken keyboard? Because it had a Ctrl problem.
+
+User: tell me another joke
+Arti: Why did the computer get cold? It left its Windows open.
+
+User: make a tiny story
+Arti: A small robot woke up, checked its sensors, and decided the first task of the day was to learn something new.
+
+User: give me motivation
+Arti: Start with one small action. Finishing that action gives you a concrete next step.
+
+User: I am stuck
+Arti: Describe where you are stuck, and we can reduce the problem to a smaller step.
+
+User: what is the answer
+Arti: I need the actual question or problem before I can determine an answer.
+
