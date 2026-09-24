@@ -1,9 +1,9 @@
 """Train ESP-Arti's project-owned v2 byte-level language model.
 
-This keeps the ESP-Arti v2 binary architecture unchanged. The important
-training change is instruction-style next-token training: examples are stored
-as User/Arti conversations and loss is applied to the assistant response,
-while the user prompt remains visible to the Transformer as context.
+The ESP32 v2 binary format is intentionally unchanged. This trainer keeps
+the exact same architecture and tensor order, but fixes the training/runtime
+alignment so the model sees the same positional layout during training that
+it sees on the ESP32.
 
 No pretrained model or remote inference service is used.
 """
@@ -30,7 +30,7 @@ HEADS = 4
 LAYERS = 2
 FF = 128
 
-STEPS = 12000
+STEPS = 20000
 BATCH = 32
 LR = 2e-3
 MIN_LR = 3e-4
@@ -46,14 +46,14 @@ if not raw:
 
 text = raw.decode("utf-8", errors="replace")
 
-# Only train on complete conversation examples. This prevents the model from
-# spending most of its capacity memorizing the explanatory header text.
+# Train only on complete User/Arti examples.
 matches = re.findall(
     r"(?ms)^User:\s*(.*?)\nArti:\s*(.*?)(?=\n\s*\nUser:|\Z)",
     text,
 )
 
 examples = []
+
 for user, answer in matches:
     user = " ".join(user.strip().split())
     answer = " ".join(answer.strip().split())
@@ -61,12 +61,20 @@ for user, answer in matches:
     if not user or not answer:
         continue
 
-    # The firmware sends exactly this conversation shape.
-    prompt = ("User: " + user + "\nArti:").encode("utf-8")
-    reply = (" " + answer + "\n").encode("utf-8")
+    # Match the firmware's input normalization/truncation behavior.
+    user_bytes = user.encode("utf-8")
+    if len(user_bytes) > 80:
+        user_bytes = user_bytes[-80:]
 
-    if len(prompt) >= CONTEXT:
-        prompt = prompt[-(CONTEXT - 2):]
+    prompt = b"User: " + user_bytes + b"\nArti:"
+    reply = b" " + answer.encode("utf-8") + b"\n"
+
+    # The firmware preserves the beginning of the prompt and then generates
+    # inside the remaining context window.
+    if len(prompt) >= CONTEXT - 1:
+        prompt = prompt[:CONTEXT - 2] + b"Arti:"
+        if len(prompt) >= CONTEXT:
+            prompt = prompt[:CONTEXT - 1]
 
     max_reply = CONTEXT - len(prompt)
     if max_reply < 8:
@@ -120,7 +128,16 @@ class Block(nn.Module):
         ).transpose(1, 2).contiguous().view(b, t, c)
 
         x = x + self.o(h)
-        x = x + self.ff2(F.gelu(self.ff1(self.ln2(x))))
+
+        # Match the ESP32 runtime's tanh-approximate GELU exactly.
+        z = self.ff1(self.ln2(x))
+        gelu = 0.5 * z * (
+            1.0 + torch.tanh(
+                0.79788456 * (z + 0.044715 * z * z * z)
+            )
+        )
+        x = x + self.ff2(gelu)
+
         return x
 
 
@@ -166,14 +183,14 @@ model = ArtiModel()
 optimizer = torch.optim.AdamW(
     model.parameters(),
     lr=LR,
-    weight_decay=0.01,
+    weight_decay=0.005,
 )
 
 for step in range(STEPS):
-    # Cosine decay keeps the early learning rate high enough to learn the
-    # dialogue structure and lowers it later to reduce unstable memorization.
     progress = step / max(1, STEPS - 1)
-    lr = MIN_LR + 0.5 * (LR - MIN_LR) * (1.0 + math.cos(math.pi * progress))
+    lr = MIN_LR + 0.5 * (LR - MIN_LR) * (
+        1.0 + math.cos(math.pi * progress)
+    )
 
     for group in optimizer.param_groups:
         group["lr"] = lr
@@ -190,25 +207,30 @@ for step in range(STEPS):
         x = seq[:-1]
         y = seq[1:]
 
-        # Only response bytes contribute to loss. Prompt bytes are still
-        # provided to the Transformer so they condition the response.
+        # Only assistant-response bytes contribute to the loss.
+        # The prompt remains visible as conditioning context.
         response_start = len(prompt) - 1
         mask = [0.0] * len(y)
 
         for i in range(response_start, len(y)):
             mask[i] = 1.0
 
-        # Left-pad short examples so tensors have a fixed context length.
+        # IMPORTANT: right-pad, not left-pad.
+        #
+        # The ESP32 starts every prompt at positional embedding 0.
+        # Left-padding changed the learned positional meaning of every
+        # conversation during training and was a major train/runtime mismatch.
         pad = CONTEXT - len(x)
+
         if pad < 0:
-            x = x[-CONTEXT:]
-            y = y[-CONTEXT:]
-            mask = mask[-CONTEXT:]
+            x = x[:CONTEXT]
+            y = y[:CONTEXT]
+            mask = mask[:CONTEXT]
             pad = 0
 
-        x = [0] * pad + x
-        y = [0] * pad + y
-        mask = [0.0] * pad + mask
+        x = x + [0] * pad
+        y = y + [0] * pad
+        mask = mask + [0.0] * pad
 
         batch_x.append(x)
         batch_y.append(y)
@@ -226,12 +248,11 @@ for step in range(STEPS):
     optimizer.step()
 
     if step % 500 == 0 or step == STEPS - 1:
-        print(
-            f"step={step} loss={loss.item():.4f} lr={lr:.6f}"
-        )
+        print(f"step={step} loss={loss.item():.4f} lr={lr:.6f}")
 
 
 HEADER_FORMAT = "<8sIIIIIII"
+
 header = struct.pack(
     HEADER_FORMAT,
     b"ESPARTI1",
