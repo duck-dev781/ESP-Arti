@@ -30,21 +30,22 @@ jobs:
           arduino-cli core update-index
           arduino-cli core install esp32:esp32@3.3.12
 
-      - name: Ensure repo-hosted AI assets
+      - name: Prepare embedded tokenizer
         env:
-          MODEL_URL: https://raw.githubusercontent.com/therezor/cardputer-ai/78c5128672b750977619dc0a6c3b8baed91168ed/embed/model_neo_q4.bin
           TOKENIZER_URL: https://raw.githubusercontent.com/therezor/cardputer-ai/78c5128672b750977619dc0a6c3b8baed91168ed/embed/tok_neo.bin
         run: |
-          mkdir -p ai
-          if [ ! -s ai/arti.bin ]; then curl -fL --retry 3 "$MODEL_URL" -o ai/arti.bin; fi
-          if [ ! -s ai/tokenizer.bin ]; then curl -fL --retry 3 "$TOKENIZER_URL" -o ai/tokenizer.bin; fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ai/arti.bin ai/tokenizer.bin
-          if ! git diff --cached --quiet; then
-            git commit -m "Add repo-hosted TinyTalk AI assets"
-            git push
-          fi
+          mkdir -p output/ESP-Arti-WiFi
+          curl -fL --retry 3 "$TOKENIZER_URL" -o /tmp/tok_neo.bin
+          python3 - <<'PY'
+          from pathlib import Path
+          data=Path('/tmp/tok_neo.bin').read_bytes()
+          with open('output/ESP-Arti-WiFi/tokenizer_data.h','w') as f:
+              f.write('#pragma once\\n#include <stddef.h>\\n#include <stdint.h>\\n')
+              f.write('static const uint8_t TINY_TALK_TOKENIZER_DATA[] = {\\n')
+              for i in range(0,len(data),16):
+                  f.write('  '+','.join(str(x) for x in data[i:i+16])+',\\n')
+              f.write('};\\nstatic const size_t TINY_TALK_TOKENIZER_SIZE = sizeof(TINY_TALK_TOKENIZER_DATA);\\n')
+          PY
 
       - name: Fetch pinned TinyTalk runtime
         run: |
