@@ -5,15 +5,14 @@
 #include <esp_heap_caps.h>
 #include <string.h>
 #include "llm.h"
+#include "tokenizer_data.h"
 
 static const char *WIFI_SSID = "";
 static const char *WIFI_PASSWORD = "";
 
 static const char *MODEL_URL = "https://raw.githubusercontent.com/duck-dev781/ESP-Arti/main/ai/arti.bin";
-static const char *TOKENIZER_URL = "https://raw.githubusercontent.com/duck-dev781/ESP-Arti/main/ai/tokenizer.bin";
 
 static constexpr size_t MODEL_LIMIT = 7 * 1024 * 1024;
-static constexpr size_t TOKENIZER_LIMIT = 512 * 1024;
 static constexpr int KV_WINDOW = 72;
 static constexpr int MAX_PROMPT_TOKENS = 58;
 static constexpr int MAX_REPLY_TOKENS = 24;
@@ -102,14 +101,12 @@ static bool downloadBlob(const char *url,uint8_t **dst,size_t *outSize,size_t li
 static bool loadModel(){
   modelReady=false; lastError="";
   if(modelBlob){free(modelBlob);modelBlob=nullptr;}
-  if(tokenizerBlob){free(tokenizerBlob);tokenizerBlob=nullptr;}
   if(!downloadBlob(MODEL_URL,&modelBlob,&modelSize,MODEL_LIMIT,"TinyTalk 2 model"))return false;
-  if(!downloadBlob(TOKENIZER_URL,&tokenizerBlob,&tokenizerSize,TOKENIZER_LIMIT,"TinyTalk tokenizer"))return false;
   if(!llm_init_embedded(&transformer,modelBlob,modelSize,KV_WINDOW)){
     lastError="TinyTalk model header/runtime initialization failed.";return false;
   }
-  if(!llm_tokenizer_from_memory(&tokenizer,tokenizerBlob,tokenizerSize,transformer.config.vocab_size)){
-    lastError="TinyTalk tokenizer initialization failed.";return false;
+  if(!llm_tokenizer_from_memory(&tokenizer,TINY_TALK_TOKENIZER_DATA,TINY_TALK_TOKENIZER_SIZE,transformer.config.vocab_size)){
+    lastError="Embedded TinyTalk tokenizer initialization failed.";return false;
   }
   if(tokenizer.vocab_size!=transformer.config.vocab_size){
     lastError="Model/tokenizer vocabulary mismatch.";return false;
