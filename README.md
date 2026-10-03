@@ -12,12 +12,12 @@ Source model/runtime:
 - GitHub: https://github.com/therezor/cardputer-ai
 - Model: https://huggingface.co/TheREZOR/TinyTalk-2
 
-The firmware pins the runtime/model assets to commit `78c5128672b750977619dc0a6c3b8baed91168ed`.
+The firmware loads the AI from this repository at boot: `ai/arti.bin` is the TinyTalk 2 Q4 model and `ai/tokenizer.bin` is its tokenizer. The runtime source is fetched from the pinned upstream commit `78c5128672b750977619dc0a6c3b8baed91168ed` during the firmware build.
 
 ## ESP32 behavior
 
 - ESP32 WROVER-E runs inference locally.
-- Model and tokenizer are downloaded into PSRAM at boot.
+- `ai/arti.bin` and `ai/tokenizer.bin` are downloaded from this repository into PSRAM at boot.
 - After loading, chat generation is local; the model does not call an AI API.
 - Wi-Fi is used for the web UI and for the initial model download.
 - No SD card is required.
@@ -41,7 +41,7 @@ The build workflow fetches `llm.h` and `llm.cpp` from the pinned upstream runtim
 
 Edit `WIFI_SSID` and `WIFI_PASSWORD` in the sketch before building.
 
-The model URLs are pinned and should not be changed unless we intentionally upgrade the model/runtime.
+The model URL points to `https://raw.githubusercontent.com/duck-dev781/ESP-Arti/main/ai/arti.bin`, so replacing that file updates the AI without changing the `.ino`. The tokenizer is loaded from `ai/tokenizer.bin`.
 
 ## License
 
