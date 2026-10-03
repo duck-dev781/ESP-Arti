@@ -14,6 +14,7 @@ static const char *MODEL_URL = "https://raw.githubusercontent.com/duck-dev781/ES
 
 static constexpr size_t MODEL_LIMIT = 7 * 1024 * 1024;
 static constexpr int KV_WINDOW = 72;
+static constexpr int KV_SINK = 18;
 static constexpr int MAX_PROMPT_TOKENS = 58;
 static constexpr int MAX_REPLY_TOKENS = 24;
 static constexpr int MAX_MESSAGE_CHARS = 180;
@@ -151,11 +152,14 @@ static String generateReply(const String &message){
   String role=roleText;
   if(role.length()>MAX_ROLE_CHARS)role=role.substring(0,MAX_ROLE_CHARS);
 
-  String prompt="Role: "+role+"\n";
+  // TinyTalk 2 was trained on the User/Bot chat format. Keep the role as a
+  // short instruction-like user turn instead of inventing a new system format.
+  String prompt;
+  if(role.length()) prompt = "User: "+String("[Role: ")+role+"]\\nBot: Okay.\\n";
   for(int i=0;i<histCount;i++){
-    prompt += "User: "+histUser[i]+"\nBot: "+histBot[i]+"\n";
+    prompt += "User: "+histUser[i]+"\\nBot: "+histBot[i]+"<|endoftext|>\\n";
   }
-  prompt += "User: "+message+"\nBot:";
+  prompt += "User: "+message+"\\nBot:";
 
   if(!appendTextTokens(prompt,tokens,&n)){
     n=0;
@@ -169,15 +173,27 @@ static String generateReply(const String &message){
   memset(transformer.state.k_gscales,0,(size_t)transformer.config.n_layers*transformer.kv_seq_len*(transformer.config.dim/32)*sizeof(uint16_t));
   memset(transformer.state.v_gscales,0,(size_t)transformer.config.n_layers*transformer.kv_seq_len*(transformer.config.dim/32)*sizeof(uint16_t));
 
-  int pos=0; float *logits=nullptr;
-  for(int i=0;i<n && pos<KV_WINDOW;i++){
-    logits=llm_forward(&transformer,tokens[i],pos);
-    pos++;
+  int pos=0;
+  int abspos=0;
+  float *logits=nullptr;
+  for(int i=0;i<n;i++){
+    if(pos>=KV_WINDOW){
+      int evicted=llm_kv_slide(&transformer,KV_SINK,KV_WINDOW-KV_SINK-1);
+      if(evicted<=0) break;
+      pos-=evicted;
+    }
+    logits=llm_forward_at(&transformer,tokens[i],pos,abspos);
+    pos++; abspos++;
   }
 
   String reply; reply.reserve(220);
   int prev=tokens[n-1];
-  for(int step=0;step<MAX_REPLY_TOKENS && pos<KV_WINDOW;step++){
+  for(int step=0;step<MAX_REPLY_TOKENS;step++){
+    if(pos>=KV_WINDOW){
+      int evicted=llm_kv_slide(&transformer,KV_SINK,KV_WINDOW-KV_SINK-1);
+      if(evicted<=0) break;
+      pos-=evicted;
+    }
     int next=llm_sample(&sampler,logits);
     if(next==tokenizer.eos_id)break;
     char scratch[64];
@@ -188,8 +204,13 @@ static String generateReply(const String &message){
       if(reply.indexOf("\nUser:")>=0)break;
     }
     prev=next;
-    logits=llm_forward(&transformer,next,pos);
-    pos++;
+    if(pos>=KV_WINDOW){
+      int evicted=llm_kv_slide(&transformer,KV_SINK,KV_WINDOW-KV_SINK-1);
+      if(evicted<=0) break;
+      pos-=evicted;
+    }
+    logits=llm_forward_at(&transformer,next,pos,abspos);
+    pos++; abspos++;
   }
   reply.trim();
   if(reply.length()==0)reply="(Arti did not generate a reply.)";
@@ -197,12 +218,12 @@ static String generateReply(const String &message){
 }
 
 static void handleRoot(){
-  String p="<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><title>ESP-Arti</title><style>body{font-family:system-ui;background:#111;color:#eee;margin:0}main{max-width:850px;margin:auto;padding:16px}input,textarea{box-sizing:border-box;width:100%;padding:11px;border-radius:9px;border:1px solid #555;background:#181818;color:#fff}textarea{min-height:70px;resize:vertical}#chat{height:55vh;overflow:auto;border:1px solid #444;border-radius:12px;padding:12px}.msg{padding:10px;margin:8px 0;border-radius:10px;background:#222;white-space:pre-wrap}.user{background:#333}button{padding:11px 16px;border:0;border-radius:9px;margin-top:8px}form{display:flex;gap:8px;margin-top:10px}form input{flex:1}.small{font-size:.85em;color:#aaa}</style></head><body><main><h1>ESP-Arti</h1><p class='small'>Published TinyTalk 2 runtime • local inference • model downloaded at boot</p><label>Role / personality</label><textarea id='role'></textarea><button onclick='setRole()'>Set role</button><div id='chat'></div><form onsubmit='sendMsg(event)'><input id='msg' autocomplete='off' placeholder='Talk to Arti...'><button>Send</button></form><script>const c=document.getElementById('chat'),r=document.getElementById('role');async function boot(){try{let x=await (await fetch('/status')).json();r.value=x.role||'';add('System',x.model+' • '+(x.model_loaded?'ready':'not ready'),'arti')}catch(e){}}function add(w,t,k){let d=document.createElement('div');d.className='msg '+k;d.textContent=w+': '+t;c.appendChild(d);c.scrollTop=c.scrollHeight}async function setRole(){await fetch('/role',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:r.value})});add('System','Role updated.','arti')}async function sendMsg(e){e.preventDefault();let i=document.getElementById('msg'),t=i.value.trim();if(!t)return;i.value='';add('You',t,'user');try{let x=await (await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:t})})).json();add('Arti',x.reply||x.error,'arti')}catch(e){add('System','Connection error: '+e,'arti')}}boot();</script></main></body></html>";
+  String p="<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><title>ESP-Arti</title><style>body{font-family:system-ui;background:#111;color:#eee;margin:0}main{max-width:850px;margin:auto;padding:16px}input,textarea{box-sizing:border-box;width:100%;padding:11px;border-radius:9px;border:1px solid #555;background:#181818;color:#fff}textarea{min-height:70px;resize:vertical}#chat{height:55vh;overflow:auto;border:1px solid #444;border-radius:12px;padding:12px}.msg{padding:10px;margin:8px 0;border-radius:10px;background:#222;white-space:pre-wrap}.user{background:#333}button{padding:11px 16px;border:0;border-radius:9px;margin-top:8px}form{display:flex;gap:8px;margin-top:10px}form input{flex:1}.small{font-size:.85em;color:#aaa}</style></head><body><main><h1>ESP-Arti</h1><p class='small'>ESP-Arti V3 • TinyTalk 2 runtime • local inference • model downloaded at boot</p><label>Role / personality</label><textarea id='role'></textarea><button onclick='setRole()'>Set role</button><div id='chat'></div><form onsubmit='sendMsg(event)'><input id='msg' autocomplete='off' placeholder='Talk to Arti...'><button>Send</button></form><script>const c=document.getElementById('chat'),r=document.getElementById('role');async function boot(){try{let x=await (await fetch('/status')).json();r.value=x.role||'';add('System',x.model+' • '+(x.model_loaded?'ready':'not ready'),'arti')}catch(e){}}function add(w,t,k){let d=document.createElement('div');d.className='msg '+k;d.textContent=w+': '+t;c.appendChild(d);c.scrollTop=c.scrollHeight}async function setRole(){await fetch('/role',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:r.value})});add('System','Role updated.','arti')}async function sendMsg(e){e.preventDefault();let i=document.getElementById('msg'),t=i.value.trim();if(!t)return;i.value='';add('You',t,'user');try{let x=await (await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:t})})).json();add('Arti',x.reply||x.error,'arti')}catch(e){add('System','Connection error: '+e,'arti')}}boot();</script></main></body></html>";
   server.send(200,"text/html",p);
 }
 
 static void handleStatus(){
-  String j="{\"model_loaded\":"+(modelReady?String("true"):String("false"))+",\"model\":\"TinyTalk 2 8M Q4\",\"role\":\""+jsonEscape(roleText)+"\",\"free_psram\":"+String(ESP.getFreePsram())+",\"ip\":\""+WiFi.localIP().toString()+"\",\"error\":\""+jsonEscape(lastError)+"\"}";
+  String j="{\"model_loaded\":"+(modelReady?String("true"):String("false"))+",\"model\":\"ESP-Arti V3 / TinyTalk 2 8M Q4\",\"role\":\""+jsonEscape(roleText)+"\",\"free_psram\":"+String(ESP.getFreePsram())+",\"ip\":\""+WiFi.localIP().toString()+"\",\"error\":\""+jsonEscape(lastError)+"\"}";
   server.send(200,"application/json",j);
 }
 
@@ -233,7 +254,7 @@ static void handleChat(){
 void setup(){
   Serial.begin(115200);
   delay(500);
-  Serial.println("\n=== ESP-Arti TinyTalk 2 ===");
+  Serial.println("\n=== ESP-Arti V3 / TinyTalk 2 ===");
   Serial.printf("PSRAM: %u bytes\n",(unsigned)ESP.getPsramSize());
   if(!psramFound()){lastError="PSRAM is required.";Serial.println(lastError);return;}
   WiFi.mode(WIFI_STA);
