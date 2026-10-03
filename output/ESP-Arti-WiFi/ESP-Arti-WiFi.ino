@@ -9,8 +9,8 @@
 static const char *WIFI_SSID = "";
 static const char *WIFI_PASSWORD = "";
 
-static const char *MODEL_URL = "https://raw.githubusercontent.com/therezor/cardputer-ai/78c5128672b750977619dc0a6c3b8baed91168ed/embed/model_neo_q4.bin";
-static const char *TOKENIZER_URL = "https://raw.githubusercontent.com/therezor/cardputer-ai/78c5128672b750977619dc0a6c3b8baed91168ed/embed/tok_neo.bin";
+static const char *MODEL_URL = "https://raw.githubusercontent.com/duck-dev781/ESP-Arti/main/ai/arti.bin";
+static const char *TOKENIZER_URL = "https://raw.githubusercontent.com/duck-dev781/ESP-Arti/main/ai/tokenizer.bin";
 
 static constexpr size_t MODEL_LIMIT = 7 * 1024 * 1024;
 static constexpr size_t TOKENIZER_LIMIT = 512 * 1024;
