@@ -9,7 +9,7 @@ on:
       - ".github/workflows/build-tinytalk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
