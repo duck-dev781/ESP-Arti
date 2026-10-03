@@ -40,11 +40,14 @@ jobs:
           from pathlib import Path
           data=Path('/tmp/tok_neo.bin').read_bytes()
           with open('output/ESP-Arti-WiFi/tokenizer_data.h','w') as f:
-              f.write('#pragma once\\n#include <stddef.h>\\n#include <stdint.h>\\n')
-              f.write('static const uint8_t TINY_TALK_TOKENIZER_DATA[] = {\\n')
+              f.write('#pragma once'+chr(10))
+              f.write('#include <stddef.h>'+chr(10))
+              f.write('#include <stdint.h>'+chr(10))
+              f.write('static const uint8_t TINY_TALK_TOKENIZER_DATA[] = {'+chr(10))
               for i in range(0,len(data),16):
-                  f.write('  '+','.join(str(x) for x in data[i:i+16])+',\\n')
-              f.write('};\\nstatic const size_t TINY_TALK_TOKENIZER_SIZE = sizeof(TINY_TALK_TOKENIZER_DATA);\\n')
+                  f.write('  '+','.join(str(x) for x in data[i:i+16])+','+chr(10))
+              f.write('};'+chr(10))
+              f.write('static const size_t TINY_TALK_TOKENIZER_SIZE = sizeof(TINY_TALK_TOKENIZER_DATA);'+chr(10))
           PY
 
       - name: Fetch TinyTalk V3 runtime
