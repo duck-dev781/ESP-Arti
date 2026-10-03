@@ -1,38 +1,50 @@
 # ESP-Arti
 
-A low-cost local neural language model runtime for an ESP32 WROVER-E.
+ESP-Arti is a Wi-Fi chat interface and offline inference runtime for an ESP32 WROVER-E.
 
-## Architecture
+## Current AI
 
-- The permanently flashed `ESP-Arti.ino` is the runtime engine and GitHub loader.
-- AI files are downloaded at runtime from this repository; changing them does not require reflashing the firmware.
-- The ESP32 runs the neural model locally in PSRAM.
-- BLE is the chat transport.
-- Internet retrieval is optional and provides temporary current-information context.
-- No SD card and no external AI inference API are required.
+The project no longer trains or ships the old project-owned Arti model.
 
-## Runtime AI files
+The current firmware uses the published **TinyTalk 2** Q4 model/runtime from TheREZOR's `cardputer-ai` project. TinyTalk 2 is based on TinyStories-Instruct-8M and was fine-tuned for `User:` / `Bot:` conversations. Its published model card documents the GPT-Neo architecture, Q4 runtime, and chat prompt format.
 
-The firmware expects:
+Source model/runtime:
+- GitHub: https://github.com/therezor/cardputer-ai
+- Model: https://huggingface.co/TheREZOR/TinyTalk-2
 
-- `ai/config.h`
-- `ai/tokenizer.h`
-- `ai/weights_00.h`
-- additional numbered weight files when configured
+The firmware pins the runtime/model assets to commit `78c5128672b750977619dc0a6c3b8baed91168ed`.
 
-The .h extension here means **runtime data**. The ESP32 does not compile downloaded source code.
+## ESP32 behavior
 
-## Important
+- ESP32 WROVER-E runs inference locally.
+- Model and tokenizer are downloaded into PSRAM at boot.
+- After loading, chat generation is local; the model does not call an AI API.
+- Wi-Fi is used for the web UI and for the initial model download.
+- No SD card is required.
+- A role/personality field is available from the web UI.
+- Changing the role resets short-term chat history.
+- The firmware keeps a small multi-turn history because MCU memory/context are limited.
 
-A trained weight set is required for useful generation. The firmware deliberately does not contain a fake hard-coded response engine.
+## Important limitation
+
+TinyTalk 2 is a tiny educational chatbot, not a general ChatGPT-class model. Its published documentation says it is aimed at simple conversation, simple facts, and short context, and it can respond with “I don't know” outside its narrow training range.
 
 ## Build
 
-Open `ESP-Arti.ino` in Arduino IDE with an ESP32 board package installed. Select an ESP32 WROVER-compatible board and enable PSRAM if your board menu exposes that option.
+The GitHub Actions workflow `.github/workflows/build-tinytalk.yml` installs Arduino CLI and the ESP32 Arduino core, fetches the pinned TinyTalk runtime source, compiles the WROVER firmware using the scalar path, and publishes `ESP-Arti-TinyTalk2-WROVER.bin` as an Actions artifact.
 
-Set Wi-Fi credentials in the sketch before flashing.
+The permanent sketch is `output/ESP-Arti-WiFi/ESP-Arti-WiFi.ino`.
 
-## GitHub Actions
+The build workflow fetches `llm.h` and `llm.cpp` from the pinned upstream runtime at build time, so the large third-party inference engine does not have to be duplicated in this repository.
 
-- `.github/workflows/build-firmware.yml` compiles the firmware on every push.
-- `.github/workflows/train-model.yml` is manually triggered to train/export runtime AI files and publish them back into the repository when the training environment is available.
+## Wi-Fi
+
+Edit `WIFI_SSID` and `WIFI_PASSWORD` in the sketch before building.
+
+The model URLs are pinned and should not be changed unless we intentionally upgrade the model/runtime.
+
+## License
+
+The ESP-Arti project code remains separate from the third-party model/runtime.
+
+TinyTalk 2 is licensed **CC BY-NC-SA 4.0** according to its model card, with attribution and non-commercial/share-alike terms inherited from its training data. Check the upstream license before redistributing the model or using it commercially.
