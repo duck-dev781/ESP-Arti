@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - "output/ESP-Arti-WiFi/**"
+      - "ai/**"
       - ".github/workflows/build-tinytalk.yml"
 
 permissions:
@@ -28,6 +29,22 @@ jobs:
           arduino-cli config add board_manager.additional_urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
           arduino-cli core update-index
           arduino-cli core install esp32:esp32@3.3.12
+
+      - name: Ensure repo-hosted AI assets
+        env:
+          MODEL_URL: https://raw.githubusercontent.com/therezor/cardputer-ai/78c5128672b750977619dc0a6c3b8baed91168ed/embed/model_neo_q4.bin
+          TOKENIZER_URL: https://raw.githubusercontent.com/therezor/cardputer-ai/78c5128672b750977619dc0a6c3b8baed91168ed/embed/tok_neo.bin
+        run: |
+          mkdir -p ai
+          if [ ! -s ai/arti.bin ]; then curl -fL --retry 3 "$MODEL_URL" -o ai/arti.bin; fi
+          if [ ! -s ai/tokenizer.bin ]; then curl -fL --retry 3 "$TOKENIZER_URL" -o ai/tokenizer.bin; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ai/arti.bin ai/tokenizer.bin
+          if ! git diff --cached --quiet; then
+            git commit -m "Add repo-hosted TinyTalk AI assets"
+            git push
+          fi
 
       - name: Fetch pinned TinyTalk runtime
         run: |
