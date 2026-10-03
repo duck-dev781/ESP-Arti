@@ -50,8 +50,11 @@ jobs:
       - name: Fetch TinyTalk V3 runtime
         run: |
           git clone --depth 1 https://github.com/therezor/cardputer-ai.git /tmp/cardputer-ai
-          cp /tmp/cardputer-ai/main/llm.h "$GITHUB_WORKSPACE/output/ESP-Arti-WiFi/llm.h"
-          cp /tmp/cardputer-ai/main/llm.cpp "$GITHUB_WORKSPACE/output/ESP-Arti-WiFi/llm.cpp"
+          cd /tmp/cardputer-ai
+          git fetch --depth 1 origin 78c5128672b750977619dc0a6c3b8baed91168ed
+          git checkout 78c5128672b750977619dc0a6c3b8baed91168ed
+          cp main/llm.h "$GITHUB_WORKSPACE/output/ESP-Arti-WiFi/llm.h"
+          cp main/llm.cpp "$GITHUB_WORKSPACE/output/ESP-Arti-WiFi/llm.cpp"
 
       - name: Compile WROVER firmware
         run: |
@@ -60,12 +63,12 @@ jobs:
       - name: Package firmware
         run: |
           cp output/firmware/ESP-Arti-WiFi.ino.bin output/ESP-Arti-V3-WROVER.bin
-          sha256sum output/ESP-Arti-TinyTalk2-WROVER.bin > output/ESP-Arti-TinyTalk2-WROVER.bin.sha256
+          sha256sum output/ESP-Arti-V3-WROVER.bin > output/ESP-Arti-V3-WROVER.bin.sha256
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
           name: ESP-Arti-V3-WROVER
           path: |
-            output/ESP-Arti-TinyTalk2-WROVER.bin
-            output/ESP-Arti-TinyTalk2-WROVER.bin.sha256
+            output/ESP-Arti-V3-WROVER.bin
+            output/ESP-Arti-V3-WROVER.bin.sha256
